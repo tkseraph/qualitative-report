@@ -244,6 +244,19 @@ jupyter notebook screener.ipynb
 
 Notebook 包含 7 个 Cell：初始化 → Tier 1 过滤 → 排名 → Tier 2 分析 → 评分 → 导出 → 个股详情，附 matplotlib 可视化图表。
 
+### HTML 报告输出（定性报告）
+
+`report_to_html.py` 用于将 `qualitative_report.md` 转换为可本地预览的 HTML。该脚本依赖 `markdown` 和 `jinja2`，执行 `bash init.sh` 安装依赖后可直接运行。
+
+```bash
+# 本地预览（内嵌 CSS，无需外部站点资源）
+.venv/bin/python scripts/report_to_html.py \
+  --input output/qualitative_report.md \
+  --output output/qualitative_report.html \
+  --data-pack output/data_pack_market.md \
+  --standalone
+```
+
 ## 项目结构
 
 ```
@@ -533,6 +546,7 @@ matplotlib>=3.5.0     # 可视化（Notebook）
 tqdm>=4.60.0          # 进度条
 jupyter>=1.0.0        # Notebook 运行环境
 jinja2>=3.0.0         # HTML 模板（报告 + 选股器导出）
+markdown>=3.0.0       # Markdown -> HTML 渲染
 yfinance>=0.2.0       # 港股/美股行情回退
 ```
 
