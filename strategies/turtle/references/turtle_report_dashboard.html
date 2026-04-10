@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ company_name }} ({{ stock_code }}) · Turtle Report</title>
+{% if standalone_css %}
+<style>
+{{ standalone_css }}
+</style>
+{% endif %}
+</head>
+<body>
+<div class="container">
+  <nav class="site-nav">
+    <a href="#" class="nav-logo">Turtle Report</a>
+    <div class="nav-links">
+      <a href="#overview" class="active">总览</a>
+      <a href="#quant">量化</a>
+      <a href="#quality">商业质量</a>
+      <a href="#conclusion">结论</a>
+    </div>
+  </nav>
+</div>
+
+<div class="report-body">
+  <div class="header" id="overview">
+    <div class="ticker">TURTLE · {{ stock_code }}</div>
+    <h1>{{ company_name }} · 龟龟投资策略报告</h1>
+    <div class="date">Report generated {{ generated_date }}</div>
+  </div>
+
+  <div class="verdict {{ verdict_class }}">
+    <div>
+      <div class="verdict-label">Turtle Verdict</div>
+      <div class="verdict-text">
+        <span class="tag {{ verdict_tag_class }}">{{ verdict_tag }}</span> &nbsp;
+        {{ verdict_text }}
+      </div>
+    </div>
+  </div>
+
+  <h2>策略总览</h2>
+  <div class="grid g4">
+    {% for card in key_cards %}
+    <div class="metric {{ card.css_class }}">
+      <div class="label">{{ card.label }}</div>
+      <div class="value">{{ card.value }}</div>
+      {% if card.sub %}<div class="sub">{{ card.sub }}</div>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if meta_html %}
+  <div class="callout">{{ meta_html }}</div>
+  {% endif %}
+
+  {% if exec_html %}
+  <h2>Executive Summary</h2>
+  <div class="callout">{{ exec_html }}</div>
+  {% endif %}
+
+  {% if assumptions_html %}
+  <h2>关键假设</h2>
+  {{ assumptions_html }}
+  {% endif %}
+
+  {% if quant_html %}
+  <h2 id="quant">phase3_quantitative 结果摘要</h2>
+  {{ quant_html }}
+  {% endif %}
+
+  {% if quality_html %}
+  <h2 id="quality">商业质量结论引用</h2>
+  {{ quality_html }}
+  {% endif %}
+
+  {% if valuation_html %}
+  <h2>策略结论</h2>
+  {{ valuation_html }}
+  {% endif %}
+
+  {% if conclusion_html %}
+  <h2 id="conclusion">综合结论</h2>
+  {{ conclusion_html }}
+  {% endif %}
+
+  {% if thesis_html %}
+  <h2>风险提示</h2>
+  {{ thesis_html }}
+  {% endif %}
+
+  <div class="footer">
+    <strong>Disclaimer:</strong> 本页面用于展示龟龟投资策略 Markdown 报告的 HTML 版本，仅供研究参考，不构成投资建议。<br>
+    Generated with turtle report HTML v1 · {{ generated_date }}
+  </div>
+</div>
+</body>
+</html>

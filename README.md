@@ -299,6 +299,20 @@ Notebook 包含 7 个 Cell：初始化 → Tier 1 过滤 → 排名 → Tier 2 �
   --standalone
 ```
 
+### HTML 报告输出（龟龟策略报告）
+
+`turtle_report_to_html.py` 是 turtle 报告专用 HTML 展示脚本，用于将 `turtle_report.md` 转换为本地预览页面。
+
+```bash
+.venv/bin/python scripts/turtle_report_to_html.py \
+  --input output/000538_acceptance/000538_SZ_turtle_report.md \
+  --output output/000538_acceptance/000538_SZ_turtle_report.html \
+  --standalone
+```
+
+输入文件：`*_turtle_report.md`  
+输出文件：`*_turtle_report.html`
+
 ## 项目结构
 
 ```
