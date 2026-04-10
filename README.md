@@ -150,6 +150,27 @@ export TUSHARE_TOKEN='your_token_here'
 `/business-analysis` PDF-first 单 Agent 定性分析（年报 PDF + Tushare 数据）。
 `/valuation` 独立估值分析，需先运行 `/business-analysis`（依赖定性报告 + 市场数据）。
 
+### 单标的标准入口 v1（半自动 runner）
+
+`scripts/run_single_stock.py` 是当前项目的单标的标准入口 v1。它是**半自动 runner**：负责直接执行确定性链路，并打印后续 workflow 提示；它本身**不会**自动生成 `qualitative_report.md` 和最终估值报告。
+
+```bash
+.venv/bin/python scripts/run_single_stock.py \
+  --code 000538.SZ \
+  --pdf "output/2026-03-31：云南白药：2025年年度报告.pdf" \
+  --output-dir output/000538_runner_repro
+```
+
+runner 直接生成的中间件：
+- `annual_report.pdf`
+- `data_pack_market.md`
+- `pdf_sections.json`
+- `valuation_computed.md`
+
+仍需由 Claude / workflow 继续完成的步骤：
+- Step 5：基于 `shared/qualitative/*` 生成 `qualitative_report.md`
+- Step 7：基于 `strategies/valuation/*` 组装最终估值报告 `.md`
+
 ### 数据采集（仅 Phase 1A）
 
 ```bash
