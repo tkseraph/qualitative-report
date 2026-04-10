@@ -367,16 +367,22 @@ class ValuationEngine:
         all_negative = all(f <= 0 for f in fcf_list)
 
         # Growth assumptions
-        fcf_cagr = self._cagr(fcf_list)
-        if fcf_cagr is not None and fcf_cagr > 0:
-            g_hist = fcf_cagr * 100
+        rev_series = [self._sf(r.get("revenue")) for _, r in self._annual_df("income").head(5).iterrows()]
+        rev_cagr = self._cagr(rev_series)
+        if rev_cagr is not None and rev_cagr > 0:
+            g_hist = rev_cagr * 100
+            g_conservative = g_hist * 0.8
+            if self.classify().get("type") == "蓝筹价值型":
+                g_conservative = min(g_conservative, 10.0)
         else:
-            # Fallback to revenue CAGR
-            rev_series = [self._sf(r.get("revenue")) for _, r in self._annual_df("income").head(5).iterrows()]
-            rev_cagr = self._cagr(rev_series)
-            g_hist = rev_cagr * 100 if rev_cagr is not None else 5.0
-
-        g_conservative = g_hist * 0.8
+            # Guardrail: only apply the stable-Dcf revenue-based rule when revenue CAGR is valid.
+            # Otherwise keep the previous fallback behavior.
+            fcf_cagr = self._cagr(fcf_list)
+            if fcf_cagr is not None and fcf_cagr > 0:
+                g_hist = fcf_cagr * 100
+            else:
+                g_hist = 5.0
+            g_conservative = g_hist * 0.8
         g_terminal = self.params["g_terminal"]
 
         # Ensure g_terminal < WACC
@@ -621,6 +627,13 @@ class ValuationEngine:
         dps_latest = annual_dps[0][1]
         dps_list = [v for _, v in annual_dps]
 
+        if len(annual_dps) >= 4:
+            prev3_vals = [v for _, v in annual_dps[1:4]]
+            prev3_avg = statistics.mean(prev3_vals)
+            if prev3_avg > 0 and dps_latest < prev3_avg * 0.8:
+                dps_latest = annual_dps[1][1]
+                dps_list = [v for _, v in annual_dps[1:]]
+
         # Payout ratio stats
         payout_lookup = self.client._get_payout_by_year()
         payout_vals = list(payout_lookup.values())[:3]
@@ -643,7 +656,7 @@ class ValuationEngine:
 
         # Model selection
         cv = payout_std / payout_avg if payout_avg and payout_avg > 0 else 0
-        use_gordon = dps_cagr_pct < 5 and cv < 0.20
+        use_gordon = 0 <= dps_cagr_pct < 5 and cv < 0.20
 
         if use_gordon:
             g_sustainable = roe_avg * (1 - payout_avg / 100) if (roe_avg and payout_avg) else dps_cagr_pct
@@ -658,6 +671,8 @@ class ValuationEngine:
         else:
             # Two-stage
             g1 = dps_cagr_pct
+            if self.classify().get("type") == "蓝筹价值型":
+                g1 = min(g1, 12.0)
             g2 = min(g_terminal, ke - 1.0)  # ensure g2 < ke
             pv_phase1 = 0
             dps_t = dps_latest
