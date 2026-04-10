@@ -28,8 +28,10 @@
 
 1. 读取 `references/shared_tables.md`（税率表、门槛公式、穿透回报率公式、跨币种规则）
 2. 读取 `{output_dir}/data_pack_market.md`（主数据源）
-3. 读取 `{output_dir}/data_pack_report.md`（若存在）
+3. **优先读取** `{output_dir}/data_pack_report.md`（增强输入，若存在则用于补强 P13/P4/P6/SUB 证据）
 4. 读取 `{output_dir}/data_pack_report_interim.md`（若存在，中报附注优先）
+
+> `data_pack_report.md` 是**优先读取的增强输入**，不是硬前置；若缺失，必须继续按当前降级模式完成分析。
 
 ---
 
@@ -45,9 +47,10 @@
    - 确认 §3/§4/§5 三大报表、§3P/§4P 母公司报表数据完整性
    - 确认 §11 历史价格、§17 衍生指标
 
-2. **`data_pack_report.md`**（可选）：
-   - 若不存在 → 标注「无年报PDF」
-   - 若存在 → 确认 P2/P3/P4/P6/P13/SUB 各项状态
+2. **`data_pack_report.md`**（可选增强输入）：
+   - 若存在 → **优先读取并引用**其中的 P13/P4/P6/SUB（P3 若有则一并使用），用于补强利润质量、关联交易、或有事项、控股结构判断
+   - 若不存在 → 标注「无附注结构化数据」，并继续按当前降级模式完成分析
+   - 不因其缺失而中止整体计算
 
 3. **`data_pack_report_interim.md`**（可选）：
    - 若不存在 → 仅使用年报数据

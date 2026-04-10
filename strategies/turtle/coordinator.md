@@ -63,8 +63,9 @@
 
 **可选**：
 3. `{output_dir}/data_pack_report.md` — PDF 附注数据（由 /business-analysis Step 1C 生成）
-   - 若存在 → Agent B 使用完整数据（P2/P3/P4/P6/P13/SUB）
+   - 若存在 → Agent B **优先读取并引用**其中的 P13/P4/P6/SUB（P3 若有则一并使用），用于补强利润质量、关联交易、或有事项、控股结构判断
    - 若不存在 → Agent B 使用降级方案（无附注数据）
+   - **注意**：`data_pack_report.md` 不是硬前置，缺失时不得中止 turtle 主流程
 
 > 定性分析和 PDF 附注提取已从龟龟策略中解耦，由 `/business-analysis` 独立完成。
 > 龟龟策略直接读取其输出，不再内嵌定性分析或 PDF 提取流程。
