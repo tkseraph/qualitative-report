@@ -92,8 +92,7 @@ def main() -> None:
         "--output-dir", str(output_dir),
     ], cwd=project_root)
 
-    print("\n=== Step 5 workflow prompt ===")
-    print(
+    step5_prompt = (
         f"请基于以下输入生成 qualitative_report.md：\n"
         f"- {data_pack_path}\n"
         f"- {annual_report_path}\n"
@@ -107,9 +106,7 @@ def main() -> None:
         f"- {project_root / 'shared' / 'qualitative' / 'agents' / 'writing_style.md'}\n\n"
         f"输出文件：{output_dir / 'qualitative_report.md'}"
     )
-
-    print("\n=== Step 7 workflow prompt ===")
-    print(
+    step7_prompt = (
         f"在以下文件齐备后生成最终估值报告：\n"
         f"- {data_pack_path}\n"
         f"- {output_dir / 'qualitative_report.md'}\n"
@@ -121,6 +118,19 @@ def main() -> None:
         f"- {project_root / 'strategies' / 'valuation' / 'references' / 'report_template.md'}\n\n"
         f"输出文件建议：{output_dir / (ts_code.replace('.', '_') + '_估值报告.md')}"
     )
+
+    step5_prompt_path = output_dir / "step5_qualitative_prompt.md"
+    step7_prompt_path = output_dir / "step7_valuation_prompt.md"
+    step5_prompt_path.write_text(step5_prompt + "\n", encoding="utf-8")
+    step7_prompt_path.write_text(step7_prompt + "\n", encoding="utf-8")
+
+    print("\n=== Step 5 workflow prompt ===")
+    print(step5_prompt)
+    print(f"[runner] saved: {step5_prompt_path}")
+
+    print("\n=== Step 7 workflow prompt ===")
+    print(step7_prompt)
+    print(f"[runner] saved: {step7_prompt_path}")
 
 
 if __name__ == "__main__":
