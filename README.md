@@ -171,6 +171,27 @@ runner 直接生成的中间件：
 - Step 5：基于 `shared/qualitative/*` 生成 `qualitative_report.md`
 - Step 7：基于 `strategies/valuation/*` 组装最终估值报告 `.md`
 
+### 单标的续跑入口 v1.1（半自动）
+
+`scripts/continue_single_stock.py` 是当前项目的**半自动续跑入口**，用于在已有 `output_dir` 基础上继续准备 Step 5 / Step 7。它支持两个 stage：`step5` 和 `step7`。
+
+```bash
+# 准备 Step 5（定性分析）
+.venv/bin/python scripts/continue_single_stock.py \
+  --output-dir output/000538_acceptance \
+  --stage step5
+
+# 准备 Step 7（最终估值报告组装）
+.venv/bin/python scripts/continue_single_stock.py \
+  --output-dir output/000538_acceptance \
+  --stage step7
+```
+
+它会：
+- 检查当前 stage 所需输入文件是否齐备
+- 生成 / 刷新对应的 prompt 文件（`step5_qualitative_prompt.md` 或 `step7_valuation_prompt.md`）
+- 在终端打印已检查通过的输入文件、prompt 路径和下一步目标输出路径
+
 ### 数据采集（仅 Phase 1A）
 
 ```bash
