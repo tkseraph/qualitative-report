@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ company_name }} ({{ stock_code }}) · 估值报告</title>
+{% if standalone_css %}
+<style>
+{{ standalone_css }}
+</style>
+{% endif %}
+</head>
+<body>
+<div class="container">
+  <nav class="site-nav">
+    <a href="#" class="nav-logo">Valuation Report</a>
+    <div class="nav-links">
+      <a href="#overview" class="active">总览</a>
+      <a href="#methods">方法</a>
+      <a href="#cross">交叉验证</a>
+      <a href="#risks">风险</a>
+    </div>
+  </nav>
+</div>
+
+<div class="report-body">
+  <div class="header" id="overview">
+    <div class="ticker">VALUATION · {{ stock_code }}</div>
+    <h1>{{ company_name }} · 估值分析报告</h1>
+    <div class="date">Report generated {{ generated_date }}</div>
+  </div>
+
+  <div class="verdict {{ verdict_class }}">
+    <div>
+      <div class="verdict-label">Valuation Verdict</div>
+      <div class="verdict-text">
+        <span class="tag {{ verdict_tag_class }}">{{ verdict_tag }}</span> &nbsp;
+        {{ verdict_text }}
+      </div>
+    </div>
+  </div>
+
+  <h2>估值总览</h2>
+  <div class="grid g4">
+    {% for card in key_cards %}
+    <div class="metric {{ card.css_class }}">
+      <div class="label">{{ card.label }}</div>
+      <div class="value">{{ card.value }}</div>
+      {% if card.sub %}<div class="sub">{{ card.sub }}</div>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="callout">
+    {{ overview_html }}
+  </div>
+
+  {% if executive_html %}
+  <h2>Executive Summary</h2>
+  <div class="callout">{{ executive_html }}</div>
+  {% endif %}
+
+  {% if classification_html %}
+  <h2>公司分类</h2>
+  {{ classification_html }}
+  {% endif %}
+
+  {% if wacc_html %}
+  <h2>WACC</h2>
+  {{ wacc_html }}
+  {% endif %}
+
+  {% if methods_html %}
+  <h2 id="methods">DCF / DDM / PE_Band 方法对比</h2>
+  {{ methods_html }}
+  {% endif %}
+
+  {% if xval_html %}
+  <h2 id="cross">加权结果与交叉验证</h2>
+  {{ xval_html }}
+  {% endif %}
+
+  {% if reverse_html %}
+  <h2>反向估值</h2>
+  {{ reverse_html }}
+  {% endif %}
+
+  {% if conclusion_html %}
+  <h2>估值结论</h2>
+  {{ conclusion_html }}
+  {% endif %}
+
+  {% if risks_html %}
+  <h2 id="risks">关键假设与风险提示</h2>
+  {{ risks_html }}
+  {% endif %}
+
+  <div class="footer">
+    <strong>Disclaimer:</strong> 本页面用于展示估值报告 Markdown 的 HTML 版本，仅供研究参考，不构成投资建议。<br>
+    Generated with valuation report HTML v1 · {{ generated_date }}
+  </div>
+</div>
+</body>
+</html>
