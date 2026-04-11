@@ -274,7 +274,7 @@ def build_report(output_dir: Path, data_pack_text: str, sections: dict) -> str:
     parts.append("### 原文摘录")
     parts.append("")
     if p3_found:
-        p3_match = re.search(r"4、应收账款[\s\S]*?按账龄披露[\s\S]*?(?:3年以上[\s\S]*?合计[\s\S]*?\n|合计[\s\S]*?\n)", p3)
+        p3_match = re.search(r"\d+[、.]\s*应收账款[\s\S]*?按账龄披露[\s\S]*?1年以内（含1年）[\s\S]*?3年以上\s+[\d,]+\.\d{2}\s+[\d,]+\.\d{2}[\s\S]*?合计\s+[\d,]+\.\d{2}\s+[\d,]+\.\d{2}", p3)
         p3_excerpt = p3_match.group(0) if p3_match else first_nonempty_lines(p3, 12)
         parts.append("> " + p3_excerpt.strip().replace("\n", "\n> "))
     else:
@@ -283,7 +283,8 @@ def build_report(output_dir: Path, data_pack_text: str, sections: dict) -> str:
     parts.append("### 最小结构化提取")
     parts.append("")
     if p3_found:
-        aging_rows = re.findall(r"(1年以内（含1年）|1至2年|2至3年|3年以上|合计)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})", p3)
+        p3_for_rows = p3_match.group(0) if 'p3_match' in locals() and p3_match else p3
+        aging_rows = re.findall(r"(1年以内（含1年）|1至2年|2至3年|3年以上|合计)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})", p3_for_rows)
         parts.append("| 账龄 | 期末账面余额（元） | 期初账面余额（元） |")
         parts.append("|---|---:|---:|")
         for label, end_bal, start_bal in aging_rows[:5]:
