@@ -11,6 +11,9 @@
 3. `strategies/valuation/references/valuation_methods.md` — 方法论参考
 4. `strategies/valuation/references/report_template.md` — 报告模板
 5. `{output_dir}/data_pack_market.md` — 原始数据包（备查）
+6. `{output_dir}/data_pack_report.md` — PDF 附注结构化数据（**优先读取的增强输入**，若存在则用于补强一次性损益、关联交易、或有事项和控股结构解释；若缺失则继续按当前主路径完成估值报告）
+
+> `data_pack_report.md` 只作为**增强输入**，不是硬前置；它用于增强报告解释，不直接改变 `valuation_computed.md` 的核心数值逻辑。
 
 ---
 
@@ -63,6 +66,9 @@
 - **D2 护城河证据**：是否存在定价权弱化、市场份额下降、新进入者等信号。
 - **D3 行业周期**：当前处于周期的什么位置，是否有结构性变化。
 - **D4 管理层记录**：资本配置历史（M&A 成败、回购/分红记录）。
+- **若 `data_pack_report.md` 存在**：优先引用其中的 `P13 / P4 / P6 / SUB`，分别补强一次性损益解释、治理/关联交易说明、或有事项风险说明、控股结构折价说明。
+
+> 注意：`data_pack_report.md` 只增强解释与论证，不直接改写 `valuation_computed.md` 的原始数值；任何数值调整仍必须从 `valuation_computed.md` 的敏感性矩阵中选取。
 
 ### Step 3: 执行定性调整
 

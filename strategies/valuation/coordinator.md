@@ -111,6 +111,9 @@ python3 scripts/valuation_engine.py --code {ts_code} --output-dir {output_dir}
 4. `{output_dir}/qualitative_report.md` — 定性分析报告
 5. `{output_dir}/valuation_computed.md` — Python 计算结果
 6. `{output_dir}/data_pack_market.md` — 原始数据包（备查）
+7. `{output_dir}/data_pack_report.md` — PDF 附注结构化数据（若存在则作为优先读取的增强输入；若不存在则继续按当前主路径完成组装）
+
+> 注意：`data_pack_report.md` 只增强一次性损益、关联交易、或有事项和控股结构的解释，不直接改动 `valuation_computed.md` 的原始数值。
 
 ### 执行
 
