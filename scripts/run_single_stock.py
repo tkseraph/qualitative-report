@@ -68,6 +68,7 @@ def main() -> None:
 
     data_pack_path = output_dir / "data_pack_market.md"
     pdf_sections_path = output_dir / "pdf_sections.json"
+    data_pack_report_path = output_dir / "data_pack_report.md"
     valuation_output_path = output_dir / "valuation_computed.md"
 
     run_cmd([
@@ -85,6 +86,16 @@ def main() -> None:
         "--verbose",
     ], cwd=project_root)
 
+    try:
+        run_cmd([
+            python_bin,
+            str(project_root / "scripts" / "build_data_pack_report.py"),
+            "--output-dir", str(output_dir),
+        ], cwd=project_root)
+        print(f"[runner] data_pack_report generated: {data_pack_report_path}")
+    except SystemExit as e:
+        print(f"[runner] WARNING: data_pack_report generation failed ({e}); continuing without report-pack")
+
     run_cmd([
         python_bin,
         str(project_root / "scripts" / "valuation_engine.py"),
@@ -92,31 +103,45 @@ def main() -> None:
         "--output-dir", str(output_dir),
     ], cwd=project_root)
 
+    qualitative_inputs = [
+        f"- {data_pack_path}",
+        f"- {annual_report_path}",
+        f"- {pdf_sections_path}",
+    ]
+    if data_pack_report_path.exists():
+        qualitative_inputs.append(f"- {data_pack_report_path}")
+
+    valuation_inputs = [
+        f"- {data_pack_path}",
+        f"- {output_dir / 'qualitative_report.md'}",
+        f"- {valuation_output_path}",
+    ]
+    if data_pack_report_path.exists():
+        valuation_inputs.append(f"- {data_pack_report_path}")
+
     step5_prompt = (
-        f"请基于以下输入生成 qualitative_report.md：\n"
-        f"- {data_pack_path}\n"
-        f"- {annual_report_path}\n"
-        f"- {pdf_sections_path}\n\n"
-        f"并严格按以下 workflow/reference 文件执行：\n"
-        f"- {project_root / 'shared' / 'qualitative' / 'coordinator_v2.md'}\n"
-        f"- {project_root / 'shared' / 'qualitative' / 'qualitative_assessment_v2.md'}\n"
-        f"- {project_root / 'shared' / 'qualitative' / 'references' / 'judgment_examples.md'}\n"
-        f"- {project_root / 'shared' / 'qualitative' / 'references' / 'framework_guide.md'}\n"
-        f"- {project_root / 'shared' / 'qualitative' / 'references' / 'output_schema.md'}\n"
-        f"- {project_root / 'shared' / 'qualitative' / 'agents' / 'writing_style.md'}\n\n"
-        f"输出文件：{output_dir / 'qualitative_report.md'}"
+        "请基于以下输入生成 qualitative_report.md：\n"
+        + "\n".join(qualitative_inputs)
+        + "\n\n"
+        + f"并严格按以下 workflow/reference 文件执行：\n"
+        + f"- {project_root / 'shared' / 'qualitative' / 'coordinator_v2.md'}\n"
+        + f"- {project_root / 'shared' / 'qualitative' / 'qualitative_assessment_v2.md'}\n"
+        + f"- {project_root / 'shared' / 'qualitative' / 'references' / 'judgment_examples.md'}\n"
+        + f"- {project_root / 'shared' / 'qualitative' / 'references' / 'framework_guide.md'}\n"
+        + f"- {project_root / 'shared' / 'qualitative' / 'references' / 'output_schema.md'}\n"
+        + f"- {project_root / 'shared' / 'qualitative' / 'agents' / 'writing_style.md'}\n\n"
+        + f"输出文件：{output_dir / 'qualitative_report.md'}"
     )
     step7_prompt = (
-        f"在以下文件齐备后生成最终估值报告：\n"
-        f"- {data_pack_path}\n"
-        f"- {output_dir / 'qualitative_report.md'}\n"
-        f"- {valuation_output_path}\n\n"
-        f"并严格按以下 workflow/reference 文件执行：\n"
-        f"- {project_root / 'strategies' / 'valuation' / 'coordinator.md'}\n"
-        f"- {project_root / 'strategies' / 'valuation' / 'phase2_valuation.md'}\n"
-        f"- {project_root / 'strategies' / 'valuation' / 'references' / 'valuation_methods.md'}\n"
-        f"- {project_root / 'strategies' / 'valuation' / 'references' / 'report_template.md'}\n\n"
-        f"输出文件建议：{output_dir / (ts_code.replace('.', '_') + '_估值报告.md')}"
+        "在以下文件齐备后生成最终估值报告：\n"
+        + "\n".join(valuation_inputs)
+        + "\n\n"
+        + f"并严格按以下 workflow/reference 文件执行：\n"
+        + f"- {project_root / 'strategies' / 'valuation' / 'coordinator.md'}\n"
+        + f"- {project_root / 'strategies' / 'valuation' / 'phase2_valuation.md'}\n"
+        + f"- {project_root / 'strategies' / 'valuation' / 'references' / 'valuation_methods.md'}\n"
+        + f"- {project_root / 'strategies' / 'valuation' / 'references' / 'report_template.md'}\n\n"
+        + f"输出文件建议：{output_dir / (ts_code.replace('.', '_') + '_估值报告.md')}"
     )
 
     step5_prompt_path = output_dir / "step5_qualitative_prompt.md"
@@ -131,6 +156,8 @@ def main() -> None:
     print("\n=== Step 7 workflow prompt ===")
     print(step7_prompt)
     print(f"[runner] saved: {step7_prompt_path}")
+
+    return
 
 
 if __name__ == "__main__":
