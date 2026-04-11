@@ -25,19 +25,26 @@ def require_file(path: Path) -> None:
 
 
 def build_step5_prompt(project_root: Path, output_dir: Path) -> str:
+    inputs = [
+        f"- {output_dir / 'data_pack_market.md'}",
+        f"- {output_dir / 'annual_report.pdf'}",
+        f"- {output_dir / 'pdf_sections.json'}",
+    ]
+    data_pack_report = output_dir / 'data_pack_report.md'
+    if data_pack_report.exists():
+        inputs.append(f"- {data_pack_report}")
     return (
-        f"请基于以下输入生成 qualitative_report.md：\n"
-        f"- {output_dir / 'data_pack_market.md'}\n"
-        f"- {output_dir / 'annual_report.pdf'}\n"
-        f"- {output_dir / 'pdf_sections.json'}\n\n"
-        f"并严格按以下 workflow/reference 文件执行：\n"
-        f"- {project_root / 'shared' / 'qualitative' / 'coordinator_v2.md'}\n"
-        f"- {project_root / 'shared' / 'qualitative' / 'qualitative_assessment_v2.md'}\n"
-        f"- {project_root / 'shared' / 'qualitative' / 'references' / 'judgment_examples.md'}\n"
-        f"- {project_root / 'shared' / 'qualitative' / 'references' / 'framework_guide.md'}\n"
-        f"- {project_root / 'shared' / 'qualitative' / 'references' / 'output_schema.md'}\n"
-        f"- {project_root / 'shared' / 'qualitative' / 'agents' / 'writing_style.md'}\n\n"
-        f"输出文件：{output_dir / 'qualitative_report.md'}"
+        "请基于以下输入生成 qualitative_report.md：\n"
+        + "\n".join(inputs)
+        + "\n\n"
+        + f"并严格按以下 workflow/reference 文件执行：\n"
+        + f"- {project_root / 'shared' / 'qualitative' / 'coordinator_v2.md'}\n"
+        + f"- {project_root / 'shared' / 'qualitative' / 'qualitative_assessment_v2.md'}\n"
+        + f"- {project_root / 'shared' / 'qualitative' / 'references' / 'judgment_examples.md'}\n"
+        + f"- {project_root / 'shared' / 'qualitative' / 'references' / 'framework_guide.md'}\n"
+        + f"- {project_root / 'shared' / 'qualitative' / 'references' / 'output_schema.md'}\n"
+        + f"- {project_root / 'shared' / 'qualitative' / 'agents' / 'writing_style.md'}\n\n"
+        + f"输出文件：{output_dir / 'qualitative_report.md'}"
     )
 
 
@@ -71,17 +78,24 @@ def detect_report_filename(output_dir: Path) -> Path:
 
 def build_step7_prompt(project_root: Path, output_dir: Path) -> str:
     target_output = detect_report_filename(output_dir)
+    inputs = [
+        f"- {output_dir / 'data_pack_market.md'}",
+        f"- {output_dir / 'qualitative_report.md'}",
+        f"- {output_dir / 'valuation_computed.md'}",
+    ]
+    data_pack_report = output_dir / 'data_pack_report.md'
+    if data_pack_report.exists():
+        inputs.append(f"- {data_pack_report}")
     return (
-        f"在以下文件齐备后生成最终估值报告：\n"
-        f"- {output_dir / 'data_pack_market.md'}\n"
-        f"- {output_dir / 'qualitative_report.md'}\n"
-        f"- {output_dir / 'valuation_computed.md'}\n\n"
-        f"并严格按以下 workflow/reference 文件执行：\n"
-        f"- {project_root / 'strategies' / 'valuation' / 'coordinator.md'}\n"
-        f"- {project_root / 'strategies' / 'valuation' / 'phase2_valuation.md'}\n"
-        f"- {project_root / 'strategies' / 'valuation' / 'references' / 'valuation_methods.md'}\n"
-        f"- {project_root / 'strategies' / 'valuation' / 'references' / 'report_template.md'}\n\n"
-        f"输出文件建议：{target_output}"
+        "在以下文件齐备后生成最终估值报告：\n"
+        + "\n".join(inputs)
+        + "\n\n"
+        + f"并严格按以下 workflow/reference 文件执行：\n"
+        + f"- {project_root / 'strategies' / 'valuation' / 'coordinator.md'}\n"
+        + f"- {project_root / 'strategies' / 'valuation' / 'phase2_valuation.md'}\n"
+        + f"- {project_root / 'strategies' / 'valuation' / 'references' / 'valuation_methods.md'}\n"
+        + f"- {project_root / 'strategies' / 'valuation' / 'references' / 'report_template.md'}\n\n"
+        + f"输出文件建议：{target_output}"
     )
 
 
