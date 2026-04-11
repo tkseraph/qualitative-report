@@ -166,10 +166,11 @@ Agent(
 
   数据文件：
     - Tushare 数据：{output_dir}/data_pack_market.md
+    - PDF 附注结构化数据：{output_dir}/data_pack_report.md（若存在，则作为优先读取的增强输入）
     - 年报 PDF：已在 context 中加载（如有）
 
   按照 qualitative_assessment_v2.md 的 6 维度框架进行完整分析。
-  特别注意"收入质量分解"和"交叉验证"部分。
+  特别注意"收入质量分解"和"交叉验证"部分；若存在 data_pack_report.md，优先引用其中的 P13/P4/P6/SUB（P3 若有则一并使用）补强 D1/D4/D6 判断。若缺失，则继续按当前主路径完成分析。
 
   将最终报告写入：{output_dir}/qualitative_report.md
   """,
