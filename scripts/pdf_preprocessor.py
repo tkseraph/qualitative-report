@@ -60,10 +60,14 @@ SECTION_KEYWORDS: Dict[str, List[str]] = {
         "应收账款按账龄披露",
         "应收账款按账龄列示",
         "应收款项账龄",
+        "按账龄披露",
+        "按账龄列示",
         # Traditional Chinese
         "應收賬款賬齡",
         "應收賬款的賬齡",
         "賬齡分析",
+        "按賬齡披露",
+        "按賬齡列示",
     ],
     "P4": [
         # Simplified Chinese
@@ -425,12 +429,19 @@ def _score_match(
         if sum(1 for s in subs if s in context_window) >= 2:
             score += 1.0
 
-    # P3 context scoring: penalize non-AR aging (prepayments, other payables)
+    # P3 context scoring: penalize non-AR aging (prepayments, other payables), reward AR note tables
     if section_id == "P3" and kw_pos >= 0:
-        context_window = text[max(0, kw_pos - 200):min(len(text), kw_pos + 200)]
+        context_window = text[max(0, kw_pos - 250):min(len(text), kw_pos + 250)]
         non_ar = ["预付款项", "预付账款", "预付", "应付账款", "应付票据", "其他应付"]
         if any(term in context_window for term in non_ar):
             score -= 2.0
+        ar_positive = ["应收账款", "按账龄披露", "账面余额", "坏账准备", "1年以内", "1至2年", "2至3年", "3年以上"]
+        if sum(1 for term in ar_positive if term in context_window) >= 3:
+            score += 1.5
+        if "关键审计事项" in context_window or "会计政策" in context_window:
+            score -= 0.8
+        if "应收账款 （1） 按账龄披露" in text or "应收账款\n（1） 按账龄披露" in text or "4、应收账款" in text:
+            score += 2.0
 
     # Bonus: keyword appears near a numbered heading pattern
     # e.g., "31、所有权或使用权受限资产" or "十四、关联方及关联交易"

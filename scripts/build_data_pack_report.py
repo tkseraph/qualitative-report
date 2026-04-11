@@ -263,28 +263,45 @@ def build_report(output_dir: Path, data_pack_text: str, sections: dict) -> str:
 
     parts.append("## P3. 应收账款账龄（增强项）")
     parts.append("")
-    parts.append(f"- **是否找到原文**：{'是' if bool(p3) else '否'}")
+    p3_found = bool(p3)
+    parts.append(f"- **是否找到原文**：{'是' if p3_found else '否'}")
     parts.append(f"- **来源定位**：pdf_sections.json -> P3{'；' + extract_page_refs(p3 or '') if p3 else ''}")
-    parts.append("- **说明**：当前 v0.1 不把 P3 作为阻塞项；若缺失，仅保留说明并由 data_pack_market.md 提供粗口径补充。")
+    if p3_found:
+        parts.append("- **说明**：P3 已命中，应收账款账龄披露可作为现金质量与收款纪律的增强证据。")
+    else:
+        parts.append("- **说明**：当前 v0.1 不把 P3 作为阻塞项；若缺失，仅保留说明并由 data_pack_market.md 提供粗口径补充。")
     parts.append("")
     parts.append("### 原文摘录")
     parts.append("")
-    parts.append("> " + first_nonempty_lines(p3 or "未提取到可用原文", 8).replace("\n", "\n> "))
+    if p3_found:
+        p3_match = re.search(r"4、应收账款[\s\S]*?按账龄披露[\s\S]*?(?:3年以上[\s\S]*?合计[\s\S]*?\n|合计[\s\S]*?\n)", p3)
+        p3_excerpt = p3_match.group(0) if p3_match else first_nonempty_lines(p3, 12)
+        parts.append("> " + p3_excerpt.strip().replace("\n", "\n> "))
+    else:
+        parts.append("> 未提取到可用原文")
     parts.append("")
     parts.append("### 最小结构化提取")
     parts.append("")
-    parts.append("| 项目 | 内容 |")
-    parts.append("|---|---|")
-    parts.append("| 状态 | P3 当前未稳定命中，仅保留增强项说明 |")
-    parts.append("| 临时替代 | 可从 data_pack_market.md 粗看应收账款规模变化，但不能替代账龄结构分析 |")
+    if p3_found:
+        aging_rows = re.findall(r"(1年以内（含1年）|1至2年|2至3年|3年以上|合计)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})", p3)
+        parts.append("| 账龄 | 期末账面余额（元） | 期初账面余额（元） |")
+        parts.append("|---|---:|---:|")
+        for label, end_bal, start_bal in aging_rows[:5]:
+            parts.append(f"| {label} | {end_bal} | {start_bal} |")
+    else:
+        parts.append("| 项目 | 内容 |")
+        parts.append("|---|---|")
+        parts.append("| 状态 | P3 当前未稳定命中，仅保留增强项说明 |")
+        parts.append("| 临时替代 | 可从 data_pack_market.md 粗看应收账款规模变化，但不能替代账龄结构分析 |")
     parts.append("")
     parts.append("---")
-    parts.append("")
 
+    data_integrity_line = "- **增强项已覆盖**：P3" if p3_found else "- **增强项未稳定覆盖**：P3"
+    parts.append("")
     parts.append("## 数据完整性说明")
     parts.append("")
     parts.append("- **硬门槛已覆盖**：P13 / P4 / P6 / SUB")
-    parts.append("- **增强项未稳定覆盖**：P3")
+    parts.append(data_integrity_line)
     parts.append("- 本文件为 `data_pack_report.md v0.1`，当前已可作为 turtle / qualitative / valuation 的附注结构化中间件使用。")
     parts.append("")
     return "\n".join(parts)
