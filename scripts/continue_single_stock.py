@@ -9,6 +9,7 @@ Supported stages:
 from __future__ import annotations
 
 import argparse
+import re
 from pathlib import Path
 
 
@@ -24,7 +25,16 @@ def require_file(path: Path) -> None:
         raise SystemExit(f"Missing required file: {path}")
 
 
-def build_step5_prompt(project_root: Path, output_dir: Path) -> str:
+def detect_code_prefix(output_dir: Path) -> str:
+    data_pack_path = output_dir / "data_pack_market.md"
+    text = data_pack_path.read_text(encoding="utf-8")
+    code_match = re.search(r"股票代码\s*\|\s*(\S+)", text)
+    if not code_match:
+        raise SystemExit(f"Unable to determine stock code from: {data_pack_path}")
+    return code_match.group(1).strip().replace('.', '_')
+
+
+def build_step5_prompt(project_root: Path, output_dir: Path, qualitative_report_path: Path) -> str:
     inputs = [
         f"- {output_dir / 'data_pack_market.md'}",
         f"- {output_dir / 'annual_report.pdf'}",
@@ -34,7 +44,7 @@ def build_step5_prompt(project_root: Path, output_dir: Path) -> str:
     if data_pack_report.exists():
         inputs.append(f"- {data_pack_report}")
     return (
-        "请基于以下输入生成 qualitative_report.md：\n"
+        f"请基于以下输入生成 {qualitative_report_path.name}：\n"
         + "\n".join(inputs)
         + "\n\n"
         + f"并严格按以下 workflow/reference 文件执行：\n"
@@ -44,43 +54,14 @@ def build_step5_prompt(project_root: Path, output_dir: Path) -> str:
         + f"- {project_root / 'shared' / 'qualitative' / 'references' / 'framework_guide.md'}\n"
         + f"- {project_root / 'shared' / 'qualitative' / 'references' / 'output_schema.md'}\n"
         + f"- {project_root / 'shared' / 'qualitative' / 'agents' / 'writing_style.md'}\n\n"
-        + f"输出文件：{output_dir / 'qualitative_report.md'}"
+        + f"输出文件：{qualitative_report_path}"
     )
 
 
-def detect_report_filename(output_dir: Path) -> Path:
-    qualitative_path = output_dir / "qualitative_report.md"
-    company = ""
-    code = ""
-    if qualitative_path.exists():
-        text = qualitative_path.read_text(encoding="utf-8")
-        first_line = text.splitlines()[0] if text.splitlines() else ""
-        import re
-        m = re.search(r"#\s+(.+?)（(.+?)）", first_line)
-        if m:
-            company = m.group(1).strip()
-            code = m.group(2).strip()
-    if not code:
-        data_pack_path = output_dir / "data_pack_market.md"
-        if data_pack_path.exists():
-            text = data_pack_path.read_text(encoding="utf-8")
-            import re
-            code_m = re.search(r"股票代码\s*\|\s*(\S+)", text)
-            name_m = re.search(r"公司名称\s*\|\s*(.+)", text)
-            if code_m:
-                code = code_m.group(1).strip()
-            if name_m:
-                company = name_m.group(1).strip()
-    if company and code:
-        return output_dir / f"{company}_{code}_估值报告.md"
-    return output_dir / "valuation_report.md"
-
-
-def build_step7_prompt(project_root: Path, output_dir: Path) -> str:
-    target_output = detect_report_filename(output_dir)
+def build_step7_prompt(project_root: Path, output_dir: Path, qualitative_report_path: Path, valuation_report_path: Path) -> str:
     inputs = [
         f"- {output_dir / 'data_pack_market.md'}",
-        f"- {output_dir / 'qualitative_report.md'}",
+        f"- {qualitative_report_path}",
         f"- {output_dir / 'valuation_computed.md'}",
     ]
     data_pack_report = output_dir / 'data_pack_report.md'
@@ -95,7 +76,7 @@ def build_step7_prompt(project_root: Path, output_dir: Path) -> str:
         + f"- {project_root / 'strategies' / 'valuation' / 'phase2_valuation.md'}\n"
         + f"- {project_root / 'strategies' / 'valuation' / 'references' / 'valuation_methods.md'}\n"
         + f"- {project_root / 'strategies' / 'valuation' / 'references' / 'report_template.md'}\n\n"
-        + f"输出文件建议：{target_output}"
+        + f"输出文件建议：{valuation_report_path}"
     )
 
 
@@ -106,6 +87,10 @@ def main() -> None:
     if not output_dir.exists():
         raise SystemExit(f"Output directory not found: {output_dir}")
 
+    code_prefix = detect_code_prefix(output_dir)
+    qualitative_report_path = output_dir / f"{code_prefix}_qualitative_report.md"
+    valuation_report_path = output_dir / f"{code_prefix}_valuation_report.md"
+
     if args.stage == "step5":
         required = [
             output_dir / "data_pack_market.md",
@@ -115,19 +100,19 @@ def main() -> None:
         for path in required:
             require_file(path)
         prompt_path = output_dir / "step5_qualitative_prompt.md"
-        target_output = output_dir / "qualitative_report.md"
-        prompt = build_step5_prompt(project_root, output_dir)
+        target_output = qualitative_report_path
+        prompt = build_step5_prompt(project_root, output_dir, qualitative_report_path)
     else:
         required = [
             output_dir / "data_pack_market.md",
-            output_dir / "qualitative_report.md",
+            qualitative_report_path,
             output_dir / "valuation_computed.md",
         ]
         for path in required:
             require_file(path)
         prompt_path = output_dir / "step7_valuation_prompt.md"
-        target_output = detect_report_filename(output_dir)
-        prompt = build_step7_prompt(project_root, output_dir)
+        target_output = valuation_report_path
+        prompt = build_step7_prompt(project_root, output_dir, qualitative_report_path, valuation_report_path)
 
     prompt_path.write_text(prompt + "\n", encoding="utf-8")
 

@@ -66,10 +66,13 @@ def main() -> None:
     print(f"[runner] output_dir={output_dir}")
     print(f"[runner] annual_report={annual_report_path}")
 
+    code_prefix = ts_code.replace('.', '_')
     data_pack_path = output_dir / "data_pack_market.md"
     pdf_sections_path = output_dir / "pdf_sections.json"
     data_pack_report_path = output_dir / "data_pack_report.md"
     valuation_output_path = output_dir / "valuation_computed.md"
+    qualitative_report_path = output_dir / f"{code_prefix}_qualitative_report.md"
+    valuation_report_path = output_dir / f"{code_prefix}_valuation_report.md"
 
     run_cmd([
         python_bin,
@@ -113,14 +116,14 @@ def main() -> None:
 
     valuation_inputs = [
         f"- {data_pack_path}",
-        f"- {output_dir / 'qualitative_report.md'}",
+        f"- {qualitative_report_path}",
         f"- {valuation_output_path}",
     ]
     if data_pack_report_path.exists():
         valuation_inputs.append(f"- {data_pack_report_path}")
 
     step5_prompt = (
-        "请基于以下输入生成 qualitative_report.md：\n"
+        f"请基于以下输入生成 {qualitative_report_path.name}：\n"
         + "\n".join(qualitative_inputs)
         + "\n\n"
         + f"并严格按以下 workflow/reference 文件执行：\n"
@@ -130,7 +133,7 @@ def main() -> None:
         + f"- {project_root / 'shared' / 'qualitative' / 'references' / 'framework_guide.md'}\n"
         + f"- {project_root / 'shared' / 'qualitative' / 'references' / 'output_schema.md'}\n"
         + f"- {project_root / 'shared' / 'qualitative' / 'agents' / 'writing_style.md'}\n\n"
-        + f"输出文件：{output_dir / 'qualitative_report.md'}"
+        + f"输出文件：{qualitative_report_path}"
     )
     step7_prompt = (
         "在以下文件齐备后生成最终估值报告：\n"
@@ -141,7 +144,7 @@ def main() -> None:
         + f"- {project_root / 'strategies' / 'valuation' / 'phase2_valuation.md'}\n"
         + f"- {project_root / 'strategies' / 'valuation' / 'references' / 'valuation_methods.md'}\n"
         + f"- {project_root / 'strategies' / 'valuation' / 'references' / 'report_template.md'}\n\n"
-        + f"输出文件建议：{output_dir / (ts_code.replace('.', '_') + '_估值报告.md')}"
+        + f"输出文件建议：{valuation_report_path}"
     )
 
     step5_prompt_path = output_dir / "step5_qualitative_prompt.md"
