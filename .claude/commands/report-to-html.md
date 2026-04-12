@@ -1,6 +1,6 @@
 Convert a Markdown report to a terancejiang.com-style HTML page with intelligent data visualization.
 
-Input: $ARGUMENTS (path to a .md file, e.g. `output/000333_美的集团/qualitative_report.md`)
+Input: $ARGUMENTS (path to a .md file, e.g. `output/000333_美的集团/000333_SZ_qualitative_report.md`)
 
 ---
 
@@ -264,7 +264,7 @@ Extract `moat_rating` and the one-line conclusion (look for "一句话最终结�
 After generating the HTML, copy it to the terancejiang.com site project:
 
 ```bash
-cp output/{code}_{company}/qualitative_report.html \
+cp output/{code}_{company}/{code_market}_qualitative_report.html \
    ~/Projects/Teracnejiang.com/zh/stock/{slug}.html
 ```
 
