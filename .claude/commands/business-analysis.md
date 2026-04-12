@@ -76,7 +76,7 @@ Agent(
   Follow the 6-dimension framework in qualitative_assessment_v2.md.
   Pay special attention to "revenue quality decomposition" and "cross-validation" sections.
 
-  Write final report to: output/{code}_{company}/qualitative_report.md
+  Write final report to: output/{code}_{company}/{code_market}_qualitative_report.md
   """,
   description = "6-dimension qualitative analysis"
 )
@@ -88,10 +88,10 @@ Agent(
 
 ```bash
 # For local viewing (standalone, inline CSS):
-python3 scripts/report_to_html.py --input output/{code}_{company}/qualitative_report.md --output output/{code}_{company}/qualitative_report.html --standalone
+python3 scripts/report_to_html.py --input output/{code}_{company}/{code_market}_qualitative_report.md --output output/{code}_{company}/{code_market}_qualitative_report.html --standalone
 
 # For website deployment (external CSS, terancejiang.com):
-python3 scripts/report_to_html.py --input output/{code}_{company}/qualitative_report.md --output ~/Projects/Teracnejiang.com/zh/stock/{slug}.html
+python3 scripts/report_to_html.py --input output/{code}_{company}/{code_market}_qualitative_report.md --output ~/Projects/Teracnejiang.com/zh/stock/{slug}.html
 ```
 
 ## 6 Dimensions Covered
@@ -117,11 +117,11 @@ python3 scripts/report_to_html.py --input output/{code}_{company}/qualitative_re
 - Always produce a final report even with partial data
 
 ## Output
-- **MD report** (default): output/{code}_{company}/qualitative_report.md
+- **MD report** (default): output/{code}_{company}/{code_market}_qualitative_report.md
   - Includes: Executive Summary + 6 Dimensions + Cross-Validation + Deep Conclusion + Structured Parameters
 - **PDF footnote data** (if PDF available): output/{code}_{company}/data_pack_report.md
   - Structured extraction: P2/P3/P4/P6/P13/SUB — used by downstream strategies (Turtle, etc.)
-- **HTML dashboard** (optional, only when requested): output/{code}_{company}/qualitative_report.html
+- **HTML dashboard** (optional, only when requested): output/{code}_{company}/{code_market}_qualitative_report.html
   - For local viewing: `--standalone` flag embeds CSS inline
   - For website deployment: references external CSS from terancejiang.com
 
