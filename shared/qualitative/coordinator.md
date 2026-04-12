@@ -92,7 +92,7 @@
            ▼
 ┌─────────────────────────────────────────────────┐
 │  Step 4：HTML 仪表盘报告                           │
-│  report_to_html.py → qualitative_report.html      │
+│  report_to_html.py → {code_market}_qualitative_report.html │
 └──────────┬──────────────────────────────────────┘
            │
            ▼
@@ -236,7 +236,7 @@ Task(
     - {output_dir}/data_splits/agent_c_output.md（D6，若不存在则 D6=不适用）
     - {output_dir}/data_pack_market.md（§1 基本信息，用于报告元数据）
 
-  将最终报告写入：{output_dir}/qualitative_report.md
+  将最终报告写入：{output_dir}/{code_market}_qualitative_report.md
   """,
   description = "Summary Agent: 执行摘要 + 总结 + 报告组装"
 )
@@ -247,10 +247,10 @@ Task(
 ```
 # 将 MD 报告转换为带样式的 HTML 仪表盘
 Bash(
-  command = "python3 scripts/report_to_html.py --input {output_dir}/qualitative_report.md --output {output_dir}/qualitative_report.html",
+  command = "python3 scripts/report_to_html.py --input {output_dir}/{code_market}_qualitative_report.md --output {output_dir}/{code_market}_qualitative_report.html",
   description = "生成HTML仪表盘报告"
 )
-# 输出：qualitative_report.html（信息仪表盘风格，可直接浏览器打开或打印为PDF）
+# 输出：{code_market}_qualitative_report.html（信息仪表盘风格，可直接浏览器打开或打印为PDF）
 ```
 
 ---
@@ -295,8 +295,8 @@ Bash(
 │   └── config.py                              ← Token 管理
 └── output/{code}_{company}/                   ← 运行时输出
     ├── data_pack_market.md                    ← Step 1+2 输出
-    ├── qualitative_report.md                  ← Step 3 输出（MD报告）
-    └── qualitative_report.html                ← Step 4 输出（HTML仪表盘）
+    ├── {code_market}_qualitative_report.md    ← Step 3 输出（MD报告）
+    └── {code_market}_qualitative_report.html  ← Step 4 输出（HTML仪表盘）
 ```
 
 **协调器职责**：在 Step 1 启动前，创建 `{output_dir}` 目录：

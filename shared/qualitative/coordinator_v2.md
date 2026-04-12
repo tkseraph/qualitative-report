@@ -48,7 +48,7 @@
            ▼
 ┌──────────────────────────────────────────────┐
 │  Step 3：HTML 仪表盘报告（可选）               │
-│  report_to_html.py → qualitative_report.html  │
+│  report_to_html.py → {code_market}_qualitative_report.html │
 └──────────────────────────────────────────────┘
 ```
 
@@ -172,7 +172,7 @@ Agent(
   按照 qualitative_assessment_v2.md 的 6 维度框架进行完整分析。
   特别注意"收入质量分解"和"交叉验证"部分；若存在 data_pack_report.md，优先引用其中的 P13/P4/P6/SUB（P3 若有则一并使用）补强 D1/D4/D6 判断。若缺失，则继续按当前主路径完成分析。
 
-  将最终报告写入：{output_dir}/qualitative_report.md
+  将最终报告写入：{output_dir}/{code_market}_qualitative_report.md
   """,
   description = "6维度定性分析"
 )
@@ -194,13 +194,13 @@ Agent(
 ```bash
 # 本地预览（内嵌 CSS）
 python3 scripts/report_to_html.py \
-  --input {output_dir}/qualitative_report.md \
-  --output {output_dir}/qualitative_report.html \
+  --input {output_dir}/{code_market}_qualitative_report.md \
+  --output {output_dir}/{code_market}_qualitative_report.html \
   --standalone
 
 # 网站部署（引用外部 CSS）
 python3 scripts/report_to_html.py \
-  --input {output_dir}/qualitative_report.md \
+  --input {output_dir}/{code_market}_qualitative_report.md \
   --output ~/Projects/Teracnejiang.com/zh/stock/{slug}.html
 ```
 
@@ -236,8 +236,8 @@ python3 scripts/report_to_html.py \
     ├── annual_report.pdf              ← 年报 PDF
     ├── data_pack_market.md            ← Tushare 结构化数据
     ├── data_pack_report.md            ← PDF 附注结构化数据（Step 1C 输出，供下游策略）
-    ├── qualitative_report.md          ← 分析报告
-    └── qualitative_report.html        ← HTML 仪表盘（可选）
+    ├── {code_market}_qualitative_report.md    ← 分析报告
+    └── {code_market}_qualitative_report.html  ← HTML 仪表盘（可选）
 ```
 
 ---
