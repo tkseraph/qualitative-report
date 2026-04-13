@@ -152,7 +152,7 @@ export TUSHARE_TOKEN='your_token_here'
 
 ### 单标的标准入口 v1（半自动 runner）
 
-`scripts/run_single_stock.py` 是当前项目的单标的标准入口 v1。它是**半自动 runner**：负责直接执行确定性链路，并打印后续 workflow 提示；它本身**不会**自动生成 `qualitative_report.md` 和最终估值报告。
+`scripts/run_single_stock.py` 是当前项目的单标的标准入口 v1。它是**半自动 runner**：负责直接执行确定性链路，并打印后续 workflow 提示；它本身**不会**自动生成 `{code_market}_qualitative_report.md` 和最终估值报告。
 
 ```bash
 .venv/bin/python scripts/run_single_stock.py \
@@ -168,7 +168,7 @@ runner 直接生成的中间件：
 - `valuation_computed.md`
 
 仍需由 Claude / workflow 继续完成的步骤：
-- Step 5：基于 `shared/qualitative/*` 生成 `qualitative_report.md`
+- Step 5：基于 `shared/qualitative/*` 生成 `{code_market}_qualitative_report.md`
 - Step 7：基于 `strategies/valuation/*` 组装最终估值报告 `.md`
 
 ### 单标的续跑入口 v1.1（半自动）
@@ -288,20 +288,20 @@ Notebook 包含 7 个 Cell：初始化 → Tier 1 过滤 → 排名 → Tier 2 �
 
 ### HTML 报告输出（定性报告）
 
-`report_to_html.py` 用于将 `qualitative_report.md` 转换为可本地预览的 HTML。该脚本依赖 `markdown` 和 `jinja2`，执行 `bash init.sh` 安装依赖后可直接运行。
+`report_to_html.py` 用于将 `{code_market}_qualitative_report.md` 转换为可本地预览的 HTML。该脚本依赖 `markdown` 和 `jinja2`，执行 `bash init.sh` 安装依赖后可直接运行。
 
 ```bash
 # 本地预览（内嵌 CSS，无需外部站点资源）
 .venv/bin/python scripts/report_to_html.py \
-  --input output/qualitative_report.md \
-  --output output/qualitative_report.html \
+  --input output/000538_SZ_qualitative_report.md \
+  --output output/000538_SZ_qualitative_report.html \
   --data-pack output/data_pack_market.md \
   --standalone
 ```
 
 ### HTML 报告输出（龟龟策略报告）
 
-`turtle_report_to_html.py` 是 turtle 报告专用 HTML 展示脚本，用于将 `turtle_report.md` 转换为本地预览页面。
+`turtle_report_to_html.py` 是 turtle 报告专用 HTML 展示脚本，用于将 `{code_market}_turtle_report.md` 转换为本地预览页面。
 
 ```bash
 .venv/bin/python scripts/turtle_report_to_html.py \
@@ -310,8 +310,8 @@ Notebook 包含 7 个 Cell：初始化 → Tier 1 过滤 → 排名 → Tier 2 �
   --standalone
 ```
 
-输入文件：`*_turtle_report.md`  
-输出文件：`*_turtle_report.html`
+输入文件：`{code_market}_turtle_report.md`  
+输出文件：`{code_market}_turtle_report.html`
 
 ## 项目结构
 
