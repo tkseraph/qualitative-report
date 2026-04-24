@@ -209,6 +209,11 @@ class InfrastructureMixin:
 
         HK path: Tushare divi_ratio fix + DPS/EPS cross-validation.
         A-share path: computes from cash_div × base_share × 10000 / net_income × 100.
+
+        IMPORTANT for A-shares: payout should reflect the year cash is actually paid
+        (record/ex-dividend year), not just the profit year in end_date. This avoids
+        understating multi-distribution years such as annual + special/interim payouts
+        that are implemented in the following calendar year.
         """
         # HK path: Tushare divi_ratio fix + DPS/EPS cross-validation
         hk_df = self._store.get("dividends_hk")
@@ -242,16 +247,25 @@ class InfrastructureMixin:
         if div_df is None or div_df.empty or income_df.empty:
             return {}
 
-        # Build dividend total lookup by year (sum multiple payments per year)
+        def _cash_payment_year(row) -> str:
+            for key in ("record_date", "ex_date", "ann_date", "end_date"):
+                raw = str(row.get(key, "") or "")
+                if len(raw) >= 4 and raw[:4].isdigit():
+                    return raw[:4]
+            return ""
+
+        # Build dividend total lookup by actual payment year (sum multiple payments)
         div_lookup: dict[str, float] = {}
         for _, r in div_df.iterrows():
-            year = str(r.get("end_date", ""))[:4]
+            year = _cash_payment_year(r)
+            if not year:
+                continue
             cash_div = self._safe_float(r.get("cash_div_tax")) or 0
             base_share = self._safe_float(r.get("base_share")) or 0
             payment = cash_div * base_share * 10000  # base_share is 万股
             div_lookup[year] = div_lookup.get(year, 0) + payment
 
-        # Build net income lookup by year
+        # Build net income lookup by same displayed year
         np_lookup = {}
         for _, r in income_df.iterrows():
             year = str(r["end_date"])[:4]
