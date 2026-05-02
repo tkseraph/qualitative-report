@@ -253,3 +253,9 @@ def test_cli_exits_with_clear_message_for_missing_path(tmp_path):
         sys.argv = old_argv
 
     assert f"Path not found: {missing_path}" in str(exc.value)
+
+
+def test_readme_documents_report_validator():
+    readme = Path("README.md").read_text(encoding="utf-8")
+    assert "validate_reports.py" in readme
+    assert "三报告成品验收" in readme
