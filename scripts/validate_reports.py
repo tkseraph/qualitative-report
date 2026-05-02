@@ -76,20 +76,25 @@ def validate_file(path: Path, report_type: str) -> ValidationResult:
     return validate_markdown(path.read_text(encoding="utf-8"), report_type, str(path))
 
 
-def _find_one(output_dir: Path, pattern: str) -> Path | None:
-    matches = sorted(output_dir.glob(pattern))
-    return matches[0] if matches else None
+def _find_matches(output_dir: Path, pattern: str) -> list[Path]:
+    return sorted(output_dir.glob(pattern))
+
+
+def _report_prefix(path: Path, report_type: str) -> str:
+    suffix = f"_{report_type}_report.md"
+    return path.name.removesuffix(suffix)
 
 
 def validate_output_dir(output_dir: Path) -> list[ValidationResult]:
-    report_files = {
-        "qualitative": _find_one(output_dir, "*_qualitative_report.md"),
-        "turtle": _find_one(output_dir, "*_turtle_report.md"),
-        "valuation": _find_one(output_dir, "*_valuation_report.md"),
+    report_matches = {
+        "qualitative": _find_matches(output_dir, "*_qualitative_report.md"),
+        "turtle": _find_matches(output_dir, "*_turtle_report.md"),
+        "valuation": _find_matches(output_dir, "*_valuation_report.md"),
     }
     results: list[ValidationResult] = []
-    for report_type, path in report_files.items():
-        if path is None:
+    selected_files: dict[str, Path] = {}
+    for report_type, matches in report_matches.items():
+        if not matches:
             expected = output_dir / f"*_{report_type}_report.md"
             results.append(
                 ValidationResult(
@@ -100,8 +105,41 @@ def validate_output_dir(output_dir: Path) -> list[ValidationResult]:
                     messages=[f"Missing {report_type} report matching {expected}"],
                 )
             )
+        elif len(matches) > 1:
+            results.append(
+                ValidationResult(
+                    report_type=report_type,
+                    path=str(output_dir),
+                    ok=False,
+                    missing=["duplicate_files"],
+                    messages=[
+                        f"Multiple {report_type} reports found; keep exactly one: "
+                        + ", ".join(str(path) for path in matches)
+                    ],
+                )
+            )
         else:
-            results.append(validate_file(path, report_type))
+            selected_files[report_type] = matches[0]
+            results.append(validate_file(matches[0], report_type))
+
+    if len(selected_files) == len(REPORT_SCHEMAS):
+        prefixes = {
+            report_type: _report_prefix(path, report_type)
+            for report_type, path in selected_files.items()
+        }
+        if len(set(prefixes.values())) > 1:
+            results.append(
+                ValidationResult(
+                    report_type="directory",
+                    path=str(output_dir),
+                    ok=False,
+                    missing=["prefix_mismatch"],
+                    messages=[
+                        "Reports must share the same code_market prefix: "
+                        + ", ".join(f"{key}={value}" for key, value in sorted(prefixes.items()))
+                    ],
+                )
+            )
     return results
 
 

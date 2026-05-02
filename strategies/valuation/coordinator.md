@@ -2,7 +2,7 @@
 
 > **角色**：你是项目经理。职责：(1) 验证输入并补全缺失信息；(2) 检查前置条件（定性报告）；(3) 调度 Python 计算 → LLM 定性调整；(4) 监控超时；(5) 交付最终估值报告。你不执行估值计算或数学运算。
 >
-> 本模块依赖 `/business-analysis` 的输出（qualitative_report.md + data_pack_market.md）。
+> 本模块依赖 `/business-analysis` 的输出（{code_market}_qualitative_report.md + data_pack_market.md）。
 
 ---
 
@@ -26,7 +26,7 @@
 ```
 
 **必须存在**：
-1. `{output_dir}/qualitative_report.md` — 定性分析报告（含结构化参数表）
+1. `{output_dir}/{code_market}_qualitative_report.md` — 定性分析报告（含结构化参数表）
 2. `{output_dir}/data_pack_market.md` — Tushare 数据包
 
 | 条件 | 操作 |
@@ -36,7 +36,7 @@
 
 缺失时的提示：
 ```
-⚠️ 前置条件不满足：未找到 qualitative_report.md 和/或 data_pack_market.md
+⚠️ 前置条件不满足：未找到 {code_market}_qualitative_report.md 和/或 data_pack_market.md
 请先运行 /business-analysis {stock_code} 生成定性分析报告和数据包。
 ```
 
@@ -55,7 +55,7 @@
            ▼
 ┌─────────────────────────────────────────────────┐
 │  前置检查                                         │
-│  qualitative_report.md 存在? ✓                   │
+│  {code_market}_qualitative_report.md 存在? ✓                   │
 │  data_pack_market.md 存在? ✓                     │
 └──────────┬──────────────────────────────────────┘
            │
@@ -69,9 +69,9 @@
            ▼
 ┌─────────────────────────────────────────────────┐
 │  Step 2: LLM 定性调整与报告                       │
-│  读取 qualitative_report.md + valuation_computed  │
+│  读取 {code_market}_qualitative_report.md + valuation_computed  │
 │  → 定性调整 → 选择情景 → 组装报告                  │
-│  → {company}_{code}_估值报告.md                   │
+│  → {code_market}_valuation_report.md                   │
 └──────────────────────────────────────────────────┘
 ```
 
@@ -108,7 +108,7 @@ python3 scripts/valuation_engine.py --code {ts_code} --output-dir {output_dir}
 1. `strategies/valuation/phase2_valuation.md` — 定性调整执行指令
 2. `strategies/valuation/references/valuation_methods.md` — 方法论参考
 3. `strategies/valuation/references/report_template.md` — 报告模板
-4. `{output_dir}/qualitative_report.md` — 定性分析报告
+4. `{output_dir}/{code_market}_qualitative_report.md` — 定性分析报告
 5. `{output_dir}/valuation_computed.md` — Python 计算结果
 6. `{output_dir}/data_pack_market.md` — 原始数据包（备查）
 7. `{output_dir}/data_pack_report.md` — PDF 附注结构化数据（若存在则作为优先读取的增强输入；若不存在则继续按当前主路径完成组装）
@@ -125,7 +125,7 @@ python3 scripts/valuation_engine.py --code {ts_code} --output-dir {output_dir}
 
 ### 输出
 
-`{output_dir}/{company}_{code}_估值报告.md`
+`{output_dir}/{code_market}_valuation_report.md`
 
 ### 结果检查
 
@@ -148,7 +148,7 @@ python3 scripts/valuation_engine.py --code {ts_code} --output-dir {output_dir}
 估值分析完成 ✅
 
 📊 {公司名称}（{股票代码}）
-📁 报告路径: {output_dir}/{company}_{code}_估值报告.md
+📁 报告路径: {output_dir}/{code_market}_valuation_report.md
 
 公司类型: {type}
 估值方法: {methods}
@@ -165,12 +165,12 @@ Python初步估值: {python_central} {币种}/股
 | 阶段 | 异常 | 处理 |
 |------|------|------|
 | 输入 | 代码为空 | AskUserQuestion |
-| 前置检查 | qualitative_report.md 缺失 | 停止，提示 /business-analysis |
+| 前置检查 | {code_market}_qualitative_report.md 缺失 | 停止，提示 /business-analysis |
 | 前置检查 | data_pack_market.md 缺失 | 停止，提示 /business-analysis |
 | Step 1 | TUSHARE_TOKEN 缺失 | 停止，提示设置 Token |
 | Step 1 | valuation_engine.py 报错 | 展示错误信息，提示用户检查 |
 | Step 1 | 超时 | 停止，提示重试 |
-| Step 2 | qualitative_report.md 格式异常 | 跳过定性调整，直接用 Python 结果 |
+| Step 2 | {code_market}_qualitative_report.md 格式异常 | 跳过定性调整，直接用 Python 结果 |
 | Step 2 | 某方法在 computed 中缺失 | 正常（已被 Python 跳过） |
 | Step 2 | 超时 | 输出已完成部分 |
 
@@ -183,6 +183,6 @@ Python初步估值: {python_central} {币种}/股
 {strategy_dir}  = {workspace}/strategies/valuation
 {output_dir}    = {workspace}/output/{code}_{company}
 {computed}      = {output_dir}/valuation_computed.md
-{qualitative}   = {output_dir}/qualitative_report.md
-{report}        = {output_dir}/{company}_{code}_估值报告.md
+{qualitative}   = {output_dir}/{code_market}_qualitative_report.md
+{report}        = {output_dir}/{code_market}_valuation_report.md
 ```

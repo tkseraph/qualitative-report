@@ -50,7 +50,9 @@ v2.0 采用 **共享模块 + 策略专属模块** 的分层架构，定性分析
        │  定量 + 估值(龟龟) │
        └──────┬───────────┘
               │
-     output/{code}_分析报告.md + .html
+     {code_market}_qualitative_report.md
+     {code_market}_turtle_report.md
+     {code_market}_valuation_report.md
 ```
 
 ### 独立商业分析流程（PDF-first 单 Agent）
@@ -71,7 +73,8 @@ v2.0 采用 **共享模块 + 策略专属模块** 的分层架构，定性分析
     │ D1–D6 全维度        │  交叉验证优于多 Agent 拆分
     └────┬────────────────┘
          │
-    report.md + report.html
+    {code_market}_qualitative_report.md
+    {code_market}_qualitative_report.html
 ```
 
 ### 各阶段角色
@@ -152,7 +155,7 @@ export TUSHARE_TOKEN='your_token_here'
 
 ### 单标的标准入口 v1（半自动 runner）
 
-`scripts/run_single_stock.py` 是当前项目的单标的标准入口 v1。它是**半自动 runner**：负责直接执行确定性链路，并打印后续 workflow 提示；它本身**不会**自动生成 `{code_market}_qualitative_report.md` 和最终估值报告。
+`scripts/run_single_stock.py` 是当前项目的单标的标准入口 v1。它是**半自动 runner**：负责直接执行确定性链路，并打印三份正式报告的后续 workflow 提示；它本身**不会**自动生成 `{code_market}_qualitative_report.md`、`{code_market}_turtle_report.md` 和 `{code_market}_valuation_report.md`。
 
 ```bash
 .venv/bin/python scripts/run_single_stock.py \
@@ -165,42 +168,64 @@ runner 直接生成的中间件：
 - `annual_report.pdf`
 - `data_pack_market.md`
 - `pdf_sections.json`
+- `data_pack_report.md`（如构建成功）
 - `valuation_computed.md`
 
-仍需由 Claude / workflow 继续完成的步骤：
-- Step 5：基于 `shared/qualitative/*` 生成 `{code_market}_qualitative_report.md`
-- Step 7：基于 `strategies/valuation/*` 组装最终估值报告 `.md`
+runner 同时生成三份后续 workflow prompt：
+- `step5_qualitative_prompt.md`：生成 `{code_market}_qualitative_report.md`
+- `step7_turtle_prompt.md`：生成 `{code_market}_turtle_report.md`
+- `step8_valuation_prompt.md`：生成 `{code_market}_valuation_report.md`
+
+推荐顺序：
+1. Step 5：基于 `shared/qualitative/*` 生成 qualitative 商业质量报告。
+2. Step 7：基于 `strategies/turtle/*` 生成 turtle 龟龟投资策略报告；如果 `phase3_quantitative.md` 若不存在，请按 turtle coordinator 先生成，再组装最终 turtle 报告。Step 7 不要求 phase3_quantitative.md 预先存在。
+3. Step 8：基于 `strategies/valuation/*` 生成 valuation 最终估值报告。
+4. 对整个 output 目录运行三报告验收。
 
 ### 单标的续跑入口 v1.1（半自动）
 
-`scripts/continue_single_stock.py` 是当前项目的**半自动续跑入口**，用于在已有 `output_dir` 基础上继续准备 Step 5 / Step 7。它支持两个 stage：`step5` 和 `step7`。
+`scripts/continue_single_stock.py` 是当前项目的**半自动续跑入口**，用于在已有 `output_dir` 基础上继续准备 Step 5 / Step 7 / Step 8。它支持三个 stage：`step5`、`step7` 和 `step8`。
 
 ```bash
-# 准备 Step 5（定性分析）
+# 准备 Step 5（qualitative 商业质量报告）
 .venv/bin/python scripts/continue_single_stock.py \
   --output-dir output/000538_acceptance \
   --stage step5
 
-# 准备 Step 7（最终估值报告组装）
+# 准备 Step 7（turtle 龟龟投资策略报告）
 .venv/bin/python scripts/continue_single_stock.py \
   --output-dir output/000538_acceptance \
   --stage step7
+
+# 准备 Step 8（valuation 最终估值报告）
+.venv/bin/python scripts/continue_single_stock.py \
+  --output-dir output/000538_acceptance \
+  --stage step8
 ```
 
 它会：
 - 检查当前 stage 所需输入文件是否齐备
-- 生成 / 刷新对应的 prompt 文件（`step5_qualitative_prompt.md` 或 `step7_valuation_prompt.md`）
-- 在终端打印已检查通过的输入文件、prompt 路径和下一步目标输出路径
+- 生成 / 刷新对应的 prompt 文件：`step5_qualitative_prompt.md`、`step7_turtle_prompt.md` 或 `step8_valuation_prompt.md`
+- 在 Step 7 prompt 中列出 `phase3_quantitative.md`；若不存在，请按 turtle coordinator 先生成，再继续生成 `{code_market}_turtle_report.md`
+- 在终端打印已检查通过的输入文件、prompt 路径、下一步目标输出路径和单文件验收命令
 
 ### 三报告成品验收
 
 `scripts/validate_reports.py` 用于检查一个 A 股标的输出目录是否已经达到三份正式报告的基础成品结构。它不会生成报告，只检查 qualitative、turtle、valuation 三份 Markdown 是否包含目标网页案例抽象出的关键模块。
 
 ```bash
-# 检查一个完整 output 目录
+# 检查一个完整 output 目录（三报告全部验收）
 python scripts/validate_reports.py output/000538_acceptance
 
-# 检查单个报告文件
+# 分别检查单个报告文件
+python scripts/validate_reports.py \
+  output/000538_acceptance/000538_SZ_qualitative_report.md \
+  --type qualitative
+
+python scripts/validate_reports.py \
+  output/000538_acceptance/000538_SZ_turtle_report.md \
+  --type turtle
+
 python scripts/validate_reports.py \
   output/000538_acceptance/000538_SZ_valuation_report.md \
   --type valuation

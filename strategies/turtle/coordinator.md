@@ -49,11 +49,11 @@
 ```
 
 **必须存在**：
-1. `{output_dir}/qualitative_report.md` — 定性分析报告
+1. `{output_dir}/{code_market}_qualitative_report.md` — 定性分析报告
    - 确认末尾包含 "结构化参数" 表（含 `moat_rating`、`capital_intensity` 等参数）
    - 若不存在 → **停止执行**，输出提示：
    ```
-   ⚠️ 前置条件不满足：未找到 qualitative_report.md
+   ⚠️ 前置条件不满足：未找到 {code_market}_qualitative_report.md
    请先运行 /business-analysis {stock_code} 生成定性分析报告。
    ```
 
@@ -85,7 +85,7 @@
            ▼
 ┌─────────────────────────────────────────────────┐
 │  前置条件检查                                      │
-│  qualitative_report.md 存在？ → 必须               │
+│  {code_market}_qualitative_report.md 存在？ → 必须               │
 │  data_pack_market.md 存在？ → 必须                 │
 │  data_pack_report.md 存在？ → 可选（降级方案）      │
 │    不满足 → 提示运行 /business-analysis，停止       │
@@ -107,9 +107,9 @@
 │      含 Step 0 口径锚定（原 pre-flight 已合并）     │
 │      ↓                                             │
 │  Step 3.2: Agent C（估值 + 报告组装）               │
-│      输入：qualitative_report.md + Agent B 输出     │
+│      输入：{code_market}_qualitative_report.md + Agent B 输出     │
 │      ↓                                             │
-│  输出：{公司名}_{代码}_分析报告.md                   │
+│  输出：{code_market}_turtle_report.md                   │
 └──────────┬──────────────────────────────────────┘
            │
            ▼
@@ -194,14 +194,14 @@ Task(
   请阅读 {strategy_dir}/phase3_valuation.md 中的完整指令。
 
   输入文件：
-    - {output_dir}/qualitative_report.md（定性分析报告，由 /business-analysis 生成）
+    - {output_dir}/{code_market}_qualitative_report.md（定性分析报告，由 /business-analysis 生成）
     - {output_dir}/phase3_quantitative.md（Agent B 输出，含 Step 0 基础信息 + 定量分析）
     - {output_dir}/data_pack_market.md（§11 历史价格、§17 预计算值）
 
-  定性参数提取：从 qualitative_report.md 末尾 "结构化参数" 表读取，
+  定性参数提取：从 {code_market}_qualitative_report.md 末尾 "结构化参数" 表读取，
   按 {strategy_dir}/references/factor_interface.md 的值域映射规则转换。
 
-  将最终报告写入：{output_dir}/{company}_{code}_分析报告.md
+  将最终报告写入：{output_dir}/{code_market}_turtle_report.md
   """,
   description = "Phase3 Agent C 估值与报告"
 )
@@ -248,7 +248,7 @@ Task(
 
 | 异常情况 | 处理方式 |
 |---------|---------|
-| qualitative_report.md 不存在 | 停止，提示用户运行 /business-analysis |
+| {code_market}_qualitative_report.md 不存在 | 停止，提示用户运行 /business-analysis |
 | data_pack_market.md 不存在 | 停止，提示用户运行 /business-analysis |
 | data_pack_report.md 不存在 | 继续（Agent B 降级方案：无附注数据） |
 | Tushare Token 无效或未配置 | --refresh-market 降级使用 yfinance fallback |
@@ -297,11 +297,11 @@ Task(
 │   └── requirements.txt                        ← Python 依赖
 └── output/                                     ← 运行时输出（按标的隔离）
     └── {code}_{company}/
-        ├── qualitative_report.md               ← 前置条件：/business-analysis 输出（只读）
+        ├── {code_market}_qualitative_report.md               ← 前置条件：/business-analysis 输出（只读）
         ├── data_pack_market.md                 ← /business-analysis 输出 → Step A 刷新市场数据
         ├── data_pack_report.md                 ← /business-analysis Step 1C 输出（可选，PDF 附注）
         ├── phase3_quantitative.md              ← Agent B 输出（含 Step 0 数据校验 + 定量分析）
-        └── {company}_{code}_分析报告.md          ← 最终报告
+        └── {code_market}_turtle_report.md          ← 最终报告
 ```
 
 **协调器职责**：在 Phase 1 启动前，创建 `{output_dir}` 目录：

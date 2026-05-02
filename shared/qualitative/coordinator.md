@@ -86,7 +86,7 @@
 │  Step 3.2：Summary Agent                           │
 │    读取 A/B/C 输出                                  │
 │    → 执行摘要 + 深度总结 + 报告组装                  │
-│    → qualitative_report.md                         │
+│    → {code_market}_qualitative_report.md           │
 └──────────┬──────────────────────────────────────┘
            │
            ▼

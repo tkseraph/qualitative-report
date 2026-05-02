@@ -3,7 +3,8 @@
 
 Supported stages:
 - step5: prepare qualitative analysis workflow prompt
-- step7: prepare final valuation assembly workflow prompt
+- step7: prepare turtle strategy workflow prompt
+- step8: prepare final valuation assembly workflow prompt
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ from pathlib import Path
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Prepare workflow continuation prompts")
     parser.add_argument("--output-dir", required=True, help="Existing output directory")
-    parser.add_argument("--stage", required=True, choices=["step5", "step7"], help="Continuation stage")
+    parser.add_argument("--stage", required=True, choices=["step5", "step7", "step8"], help="Continuation stage")
     return parser.parse_args()
 
 
@@ -54,11 +55,37 @@ def build_step5_prompt(project_root: Path, output_dir: Path, qualitative_report_
         + f"- {project_root / 'shared' / 'qualitative' / 'references' / 'framework_guide.md'}\n"
         + f"- {project_root / 'shared' / 'qualitative' / 'references' / 'output_schema.md'}\n"
         + f"- {project_root / 'shared' / 'qualitative' / 'agents' / 'writing_style.md'}\n\n"
-        + f"输出文件：{qualitative_report_path}"
+        + "必须保留成品报告外壳：Business Quality Verdict / 商业质量总体评级、Quality Snapshot / 质量快照、Executive Summary / 执行摘要、未来观察变量、数据来源与免责声明。\n"
+        + f"输出文件：{qualitative_report_path}\n"
+        + f"生成后运行验收：python scripts/validate_reports.py {qualitative_report_path} --type qualitative"
     )
 
 
-def build_step7_prompt(project_root: Path, output_dir: Path, qualitative_report_path: Path, valuation_report_path: Path) -> str:
+def build_step7_prompt(project_root: Path, output_dir: Path, qualitative_report_path: Path, turtle_report_path: Path) -> str:
+    inputs = [
+        f"- {output_dir / 'data_pack_market.md'}",
+        f"- {qualitative_report_path}",
+        f"- {output_dir / 'phase3_quantitative.md'}（若不存在，请按 turtle coordinator 先生成）",
+    ]
+    data_pack_report = output_dir / 'data_pack_report.md'
+    if data_pack_report.exists():
+        inputs.append(f"- {data_pack_report}")
+    return (
+        "在以下文件齐备后生成龟龟投资策略报告：\n"
+        + "\n".join(inputs)
+        + "\n\n"
+        + f"并严格按以下 workflow/reference 文件执行：\n"
+        + f"- {project_root / 'strategies' / 'turtle' / 'coordinator.md'}\n"
+        + f"- {project_root / 'strategies' / 'turtle' / 'phase3_quantitative.md'}\n"
+        + f"- {project_root / 'strategies' / 'turtle' / 'phase3_valuation.md'}\n"
+        + f"- {project_root / 'strategies' / 'turtle' / 'references' / 'factor_interface.md'}\n\n"
+        + "必须保留成品报告外壳：Strategy Verdict、Turtle Snapshot / 核心指标快照、Executive Summary、数据来源与免责。\n"
+        + f"输出文件：{turtle_report_path}\n"
+        + f"生成后运行验收：python scripts/validate_reports.py {turtle_report_path} --type turtle"
+    )
+
+
+def build_step8_prompt(project_root: Path, output_dir: Path, qualitative_report_path: Path, valuation_report_path: Path) -> str:
     inputs = [
         f"- {output_dir / 'data_pack_market.md'}",
         f"- {qualitative_report_path}",
@@ -76,7 +103,9 @@ def build_step7_prompt(project_root: Path, output_dir: Path, qualitative_report_
         + f"- {project_root / 'strategies' / 'valuation' / 'phase2_valuation.md'}\n"
         + f"- {project_root / 'strategies' / 'valuation' / 'references' / 'valuation_methods.md'}\n"
         + f"- {project_root / 'strategies' / 'valuation' / 'references' / 'report_template.md'}\n\n"
-        + f"输出文件建议：{valuation_report_path}"
+        + "必须保留成品报告外壳：Valuation Verdict / 估值总体判断、Valuation Snapshot / 估值快照、Executive Summary、数据来源与免责声明。\n"
+        + f"输出文件：{valuation_report_path}\n"
+        + f"生成后运行验收：python scripts/validate_reports.py {valuation_report_path} --type valuation"
     )
 
 
@@ -89,6 +118,7 @@ def main() -> None:
 
     code_prefix = detect_code_prefix(output_dir)
     qualitative_report_path = output_dir / f"{code_prefix}_qualitative_report.md"
+    turtle_report_path = output_dir / f"{code_prefix}_turtle_report.md"
     valuation_report_path = output_dir / f"{code_prefix}_valuation_report.md"
 
     if args.stage == "step5":
@@ -102,6 +132,16 @@ def main() -> None:
         prompt_path = output_dir / "step5_qualitative_prompt.md"
         target_output = qualitative_report_path
         prompt = build_step5_prompt(project_root, output_dir, qualitative_report_path)
+    elif args.stage == "step7":
+        required = [
+            output_dir / "data_pack_market.md",
+            qualitative_report_path,
+        ]
+        for path in required:
+            require_file(path)
+        prompt_path = output_dir / "step7_turtle_prompt.md"
+        target_output = turtle_report_path
+        prompt = build_step7_prompt(project_root, output_dir, qualitative_report_path, turtle_report_path)
     else:
         required = [
             output_dir / "data_pack_market.md",
@@ -110,9 +150,9 @@ def main() -> None:
         ]
         for path in required:
             require_file(path)
-        prompt_path = output_dir / "step7_valuation_prompt.md"
+        prompt_path = output_dir / "step8_valuation_prompt.md"
         target_output = valuation_report_path
-        prompt = build_step7_prompt(project_root, output_dir, qualitative_report_path, valuation_report_path)
+        prompt = build_step8_prompt(project_root, output_dir, qualitative_report_path, valuation_report_path)
 
     prompt_path.write_text(prompt + "\n", encoding="utf-8")
 

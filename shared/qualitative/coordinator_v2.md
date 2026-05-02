@@ -171,6 +171,7 @@ Agent(
 
   按照 qualitative_assessment_v2.md 的 6 维度框架进行完整分析。
   特别注意"收入质量分解"和"交叉验证"部分；若存在 data_pack_report.md，优先引用其中的 P13/P4/P6/SUB（P3 若有则一并使用）补强 D1/D4/D6 判断。若缺失，则继续按当前主路径完成分析。
+  最终 Markdown 必须严格保留 qualitative_assessment_v2.md 的成品报告外壳：Business Quality Verdict / 商业质量总体评级、Quality Snapshot / 质量快照、Executive Summary / 执行摘要、未来观察变量、结构化参数、数据来源与免责声明。
 
   将最终报告写入：{output_dir}/{code_market}_qualitative_report.md
   """,

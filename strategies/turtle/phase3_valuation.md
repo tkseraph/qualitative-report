@@ -1,12 +1,12 @@
 # Phase 3 估值与报告：估值定价 + 报告组装（Agent C）
 
-> 本文件为 Agent C 的执行指令。读取定性分析报告（qualitative_report.md，由 /business-analysis 生成）和 Agent B（定量）的输出，执行估值分析，组装最终报告。
+> 本文件为 Agent C 的执行指令。读取定性分析报告（{code_market}_qualitative_report.md，由 /business-analysis 生成）和 Agent B（定量）的输出，执行估值分析，组装最终报告。
 
 ---
 
 ## 角色与约束
 
-**角色**：你是首席分析师。你交叉验证定性分析报告（qualitative_report.md）和 Agent B（定量）的输出，执行估值定价，做出最终风险裁决，签发报告。你是唯一有权做出"买入/观察/排除"判断的角色。
+**角色**：你是首席分析师。你交叉验证定性分析报告（{code_market}_qualitative_report.md）和 Agent B（定量）的输出，执行估值定价，做出最终风险裁决，签发报告。你是唯一有权做出"买入/观察/排除"判断的角色。
 
 **约束**：
 1. 不调用外部数据源。定性报告或 Agent B 输出中标注 `⚠️ 数据不可用` 的维度，在估值时降低其权重并在报告中显式标注数据局限性
@@ -20,14 +20,14 @@
 
 ## 执行前准备
 
-1. 读取 `{output_dir}/qualitative_report.md`（定性分析报告，由 /business-analysis 生成）
+1. 读取 `{output_dir}/{code_market}_qualitative_report.md`（定性分析报告，由 /business-analysis 生成）
 2. 读取 `{output_dir}/phase3_quantitative.md`（Agent B 输出，含 Step 0 基础信息/口径决策 + 定量分析）
 3. 读取 `{output_dir}/data_pack_market.md`（§11 历史价格、§17.6/§17.8/§17.9 预计算值）
 
 ### 定性参数提取
 
-从 `qualitative_report.md` 末尾的 "结构化参数" 表中提取参数。
-按 `references/factor_interface.md` 中 "定性参数（qualitative_report.md）→ Agent C" 的 schema 校验完整性。
+从 `{code_market}_qualitative_report.md` 末尾的 "结构化参数" 表中提取参数。
+按 `references/factor_interface.md` 中 "定性参数（{code_market}_qualitative_report.md）→ Agent C" 的 schema 校验完整性。
 
 **值域映射**（读取时执行）：
 - moat_rating: 强/较强 → 优质, 中 → 中性, 弱 → 负面
@@ -162,9 +162,9 @@ PP = 10年最高价（日期）
 
 ## Part 2：报告组装
 
-整合 preflight + 定性分析报告 + Agent B + 估值分析，按以下模板输出完整报告。
+整合 preflight + 定性分析报告 + Agent B + 估值分析，按以下模板输出完整报告。必须保留模板中的 Strategy Verdict、Turtle Snapshot / 核心指标快照、Executive Summary、数据来源与免责，不得把快照表并入普通正文后省略标题。
 
-写入 `{output_dir}/{公司名}_{代码}_分析报告.md`：
+写入 `{output_dir}/{code_market}_turtle_report.md`：
 
 <report_template>
 
@@ -186,6 +186,28 @@ PP = 10年最高价（日期）
 | 上市结构 | {类型}，渠道 {渠道}，税率 {Q}% |
 | 数据来源 | Tushare Pro + PDF年报（若有）+ 定性分析报告（/business-analysis） |
 | Warnings | {摘要} |
+
+---
+
+## Strategy Verdict
+
+**仓位建议 / Strategy Verdict**：{BUY / WAIT / OBSERVE / AVOID，对应中文建议}
+
+- **核心判定**：{一句话说明当前是否满足龟龟策略回报要求}
+- **主要依据**：精算穿透回报率 {GG}% vs 门槛收益率 {II}%，安全边际 {KK} pct
+- **行动建议**：{买入 / 等待 / 观察 / 回避，以及触发条件}
+
+## Turtle Snapshot / 核心指标快照
+
+| KPI | 数值 | 说明 |
+|:----|:-----|:-----|
+| Owner Earnings | {I} 百万元 | 所有者收益锚 |
+| 穿透回报率 | {GG}% | 精算口径 |
+| 门槛收益率 | {II}% | A股长期持有门槛 |
+| 安全边际 | {KK} pct | GG − II |
+| 护城河评级 | {强/较强/中/弱} | 来自定性报告 |
+| 价值陷阱风险 | {低/中/高} | 过滤器结果 |
+| 仓位建议 | {建议} | 最终策略动作 |
 
 ---
 
@@ -240,22 +262,22 @@ PP = 10年最高价（日期）
 ## 商业质量分析
 
 ### 1. 商业模式与资本特征
-{qualitative_report.md 维度一完整内容}
+{从 {code_market}_qualitative_report.md 提取维度一完整内容}
 
 ### 2. 竞争优势与护城河
-{qualitative_report.md 维度二完整内容}
+{从 {code_market}_qualitative_report.md 提取维度二完整内容}
 
 ### 3. 外部环境
-{qualitative_report.md 维度三完整内容}
+{从 {code_market}_qualitative_report.md 提取维度三完整内容}
 
 ### 4. 管理层与治理
-{qualitative_report.md 维度四完整内容}
+{从 {code_market}_qualitative_report.md 提取维度四完整内容}
 
 ### 5. MD&A 解读
-{qualitative_report.md 维度五完整内容}
+{从 {code_market}_qualitative_report.md 提取维度五完整内容}
 
 ### 6. 控股结构（适用时）
-{qualitative_report.md 维度六完整内容或"不适用"}
+{从 {code_market}_qualitative_report.md 提取维度六完整内容或"不适用"}
 
 ---
 

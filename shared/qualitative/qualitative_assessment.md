@@ -469,7 +469,7 @@ SOTP 估值：[值] 百万元
 
 ## 汇总输出
 
-写入 `{output_dir}/phase3_qualitative.md`（被策略调用时）或 `{output_dir}/qualitative_report.md`（独立运行时）。
+写入 `{output_dir}/phase3_qualitative.md`（被策略调用时）或 `{output_dir}/{code_market}_qualitative_report.md`（独立运行时）。
 
 报告结构按以下顺序组织（注意执行摘要在最前、总结在维度六之后）：
 

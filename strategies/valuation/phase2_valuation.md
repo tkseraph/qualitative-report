@@ -7,7 +7,7 @@
 ## 输入
 
 1. `{output_dir}/valuation_computed.md` — Python 计算结果（分类 + WACC + 方法详情 + 敏感性表 + 假设清单）
-2. `{output_dir}/qualitative_report.md` — 定性分析报告（D1-D6 六维分析 + 结构化参数表）
+2. `{output_dir}/{code_market}_qualitative_report.md` — 定性分析报告（D1-D6 六维分析 + 结构化参数表）
 3. `strategies/valuation/references/valuation_methods.md` — 方法论参考
 4. `strategies/valuation/references/report_template.md` — 报告模板
 5. `{output_dir}/data_pack_market.md` — 原始数据包（备查）
@@ -39,7 +39,7 @@
 
 ### Step 2: 读取定性报告并提取调整信号
 
-读取 `qualitative_report.md`，分两步提取信息：
+读取 `{code_market}_qualitative_report.md`，分两步提取信息：
 
 **2a. 提取结构化参数**（报告末尾的参数表）
 
@@ -338,7 +338,7 @@ Python 默认使用 DPS CAGR 作为 DDM Phase 1 增长率。需要两层修正�
 
 | 情况 | 处理 |
 |------|------|
-| qualitative_report.md 无结构化参数表 | 跳过定性调整，直接用 Python 结果，标注"定性数据缺失" |
+| {code_market}_qualitative_report.md 无结构化参数表 | 跳过定性调整，直接用 Python 结果，标注"定性数据缺失" |
 | D1 无利润质量分解 | 不调整 FCF 增长率，保持 Python 默认 |
 | 某方法在 computed 中缺失 | 正常——Python 已跳过该方法 |
 | 敏感性表中找不到精确匹配的坐标 | 选取最接近的坐标，标注近似 |

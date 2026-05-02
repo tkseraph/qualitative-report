@@ -75,6 +75,7 @@ Agent(
 
   Follow the 6-dimension framework in qualitative_assessment_v2.md.
   Pay special attention to "revenue quality decomposition" and "cross-validation" sections.
+  Preserve the finished-report shell from qualitative_assessment_v2.md: Business Quality Verdict / 商业质量总体评级, Quality Snapshot / 质量快照, Executive Summary / 执行摘要, 未来观察变量, 结构化参数, 数据来源与免责声明.
 
   Write final report to: output/{code}_{company}/{code_market}_qualitative_report.md
   """,

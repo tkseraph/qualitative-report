@@ -1409,7 +1409,7 @@ class ValuationEngine:
         # --- Section 6: Assumptions list ---
         lines.append(format_header(2, "六、关键假设清单（待定性调整）"))
         lines.append("")
-        lines.append("> LLM 分析师：请根据定性报告（qualitative_report.md）调整以下假设，")
+        lines.append("> LLM 分析师：请根据定性报告（{code_market}_qualitative_report.md）调整以下假设，")
         lines.append("> 并从上方敏感性矩阵中选择最合理的情景坐标。")
         lines.append("")
 

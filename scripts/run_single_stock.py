@@ -23,6 +23,7 @@ import sys
 from pathlib import Path
 
 from config import validate_stock_code
+from continue_single_stock import build_step5_prompt, build_step7_prompt, build_step8_prompt
 
 
 def parse_args() -> argparse.Namespace:
@@ -72,6 +73,7 @@ def main() -> None:
     data_pack_report_path = output_dir / "data_pack_report.md"
     valuation_output_path = output_dir / "valuation_computed.md"
     qualitative_report_path = output_dir / f"{code_prefix}_qualitative_report.md"
+    turtle_report_path = output_dir / f"{code_prefix}_turtle_report.md"
     valuation_report_path = output_dir / f"{code_prefix}_valuation_report.md"
 
     run_cmd([
@@ -106,51 +108,16 @@ def main() -> None:
         "--output-dir", str(output_dir),
     ], cwd=project_root)
 
-    qualitative_inputs = [
-        f"- {data_pack_path}",
-        f"- {annual_report_path}",
-        f"- {pdf_sections_path}",
-    ]
-    if data_pack_report_path.exists():
-        qualitative_inputs.append(f"- {data_pack_report_path}")
-
-    valuation_inputs = [
-        f"- {data_pack_path}",
-        f"- {qualitative_report_path}",
-        f"- {valuation_output_path}",
-    ]
-    if data_pack_report_path.exists():
-        valuation_inputs.append(f"- {data_pack_report_path}")
-
-    step5_prompt = (
-        f"请基于以下输入生成 {qualitative_report_path.name}：\n"
-        + "\n".join(qualitative_inputs)
-        + "\n\n"
-        + f"并严格按以下 workflow/reference 文件执行：\n"
-        + f"- {project_root / 'shared' / 'qualitative' / 'coordinator_v2.md'}\n"
-        + f"- {project_root / 'shared' / 'qualitative' / 'qualitative_assessment_v2.md'}\n"
-        + f"- {project_root / 'shared' / 'qualitative' / 'references' / 'judgment_examples.md'}\n"
-        + f"- {project_root / 'shared' / 'qualitative' / 'references' / 'framework_guide.md'}\n"
-        + f"- {project_root / 'shared' / 'qualitative' / 'references' / 'output_schema.md'}\n"
-        + f"- {project_root / 'shared' / 'qualitative' / 'agents' / 'writing_style.md'}\n\n"
-        + f"输出文件：{qualitative_report_path}"
-    )
-    step7_prompt = (
-        "在以下文件齐备后生成最终估值报告：\n"
-        + "\n".join(valuation_inputs)
-        + "\n\n"
-        + f"并严格按以下 workflow/reference 文件执行：\n"
-        + f"- {project_root / 'strategies' / 'valuation' / 'coordinator.md'}\n"
-        + f"- {project_root / 'strategies' / 'valuation' / 'phase2_valuation.md'}\n"
-        + f"- {project_root / 'strategies' / 'valuation' / 'references' / 'valuation_methods.md'}\n"
-        + f"- {project_root / 'strategies' / 'valuation' / 'references' / 'report_template.md'}\n\n"
-        + f"输出文件建议：{valuation_report_path}"
-    )
+    step5_prompt = build_step5_prompt(project_root, output_dir, qualitative_report_path)
+    step7_prompt = build_step7_prompt(project_root, output_dir, qualitative_report_path, turtle_report_path)
+    step8_prompt = build_step8_prompt(project_root, output_dir, qualitative_report_path, valuation_report_path)
 
     step5_prompt_path = output_dir / "step5_qualitative_prompt.md"
-    step7_prompt_path = output_dir / "step7_valuation_prompt.md"
+    step7_prompt_path = output_dir / "step7_turtle_prompt.md"
+    step8_prompt_path = output_dir / "step8_valuation_prompt.md"
     step5_prompt_path.write_text(step5_prompt + "\n", encoding="utf-8")
     step7_prompt_path.write_text(step7_prompt + "\n", encoding="utf-8")
+    step8_prompt_path.write_text(step8_prompt + "\n", encoding="utf-8")
 
     print("\n=== Step 5 workflow prompt ===")
     print(step5_prompt)
@@ -159,6 +126,13 @@ def main() -> None:
     print("\n=== Step 7 workflow prompt ===")
     print(step7_prompt)
     print(f"[runner] saved: {step7_prompt_path}")
+
+    print("\n=== Step 8 workflow prompt ===")
+    print(step8_prompt)
+    print(f"[runner] saved: {step8_prompt_path}")
+
+    print("\n=== Final three-report validation ===")
+    print(f"python scripts/validate_reports.py {output_dir}")
 
     return
 

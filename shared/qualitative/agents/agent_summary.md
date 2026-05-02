@@ -23,7 +23,7 @@
 
 ## 输出
 
-写入 `{output_dir}/qualitative_report.md`，按以下结构组装：
+写入 `{output_dir}/{code_market}_qualitative_report.md`，按以下结构组装：
 
 ```markdown
 # 定性分析：商业质量评估 — {公司名} ({代码})

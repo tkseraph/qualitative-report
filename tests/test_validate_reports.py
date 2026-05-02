@@ -203,6 +203,37 @@ def test_output_dir_validation_reports_missing_turtle_file(tmp_path):
     assert "Missing turtle report" in turtle_result.messages[0]
 
 
+def test_output_dir_validation_reports_duplicate_report_files(tmp_path):
+    output_dir = tmp_path / "600018_sipg"
+    output_dir.mkdir()
+    (output_dir / "600018_SH_qualitative_report.md").write_text(VALID_QUALITATIVE, encoding="utf-8")
+    (output_dir / "600018_SH_copy_qualitative_report.md").write_text(VALID_QUALITATIVE, encoding="utf-8")
+    (output_dir / "600018_SH_turtle_report.md").write_text(VALID_TURTLE, encoding="utf-8")
+    (output_dir / "600018_SH_valuation_report.md").write_text(VALID_VALUATION, encoding="utf-8")
+
+    results = validate_output_dir(output_dir)
+    qualitative_result = next(result for result in results if result.report_type == "qualitative")
+
+    assert not qualitative_result.ok
+    assert qualitative_result.missing == ["duplicate_files"]
+    assert "Multiple qualitative reports" in qualitative_result.messages[0]
+
+
+def test_output_dir_validation_reports_inconsistent_report_prefixes(tmp_path):
+    output_dir = tmp_path / "600018_sipg"
+    output_dir.mkdir()
+    (output_dir / "600018_SH_qualitative_report.md").write_text(VALID_QUALITATIVE, encoding="utf-8")
+    (output_dir / "600018_SH_turtle_report.md").write_text(VALID_TURTLE, encoding="utf-8")
+    (output_dir / "000538_SZ_valuation_report.md").write_text(VALID_VALUATION, encoding="utf-8")
+
+    results = validate_output_dir(output_dir)
+    prefix_result = next(result for result in results if result.report_type == "directory")
+
+    assert not prefix_result.ok
+    assert prefix_result.missing == ["prefix_mismatch"]
+    assert "same code_market prefix" in prefix_result.messages[0]
+
+
 def test_cli_validates_single_file(tmp_path, capsys):
     from validate_reports import main
     import sys

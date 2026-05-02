@@ -4,13 +4,13 @@
 > 定性报告/Agent B 输出时按 schema 列出参数值，Agent C 输入时按 schema 校验。
 >
 > **定性参数来源**：定性参数来自 `/business-analysis` 模块的输出文件
-> `{output_dir}/qualitative_report.md` 末尾的结构化参数表
+> `{output_dir}/{code_market}_qualitative_report.md` 末尾的结构化参数表
 > （参数定义见 `shared/qualitative/references/output_schema.md`）。
 > Agent C 直接读取该参数表，不再经由 Agent A 中转。
 >
 > **值域映射**：通用模块 `moat_rating` 值域为 (强/较强/中/弱)（v1.1），
 > 龟龟策略映射为：强→优质，较强→优质，中→中性，弱→负面。
-> Agent C 在读取 qualitative_report.md 时执行此映射。
+> Agent C 在读取 {code_market}_qualitative_report.md 时执行此映射。
 
 ---
 
@@ -35,7 +35,7 @@
 
 ---
 
-## 定性参数（qualitative_report.md）→ Agent C
+## 定性参数（{code_market}_qualitative_report.md）→ Agent C
 
 | 参数 | 类型 | output_schema 来源 | 说明 |
 |------|------|-------------------|------|

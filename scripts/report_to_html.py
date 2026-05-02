@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Convert qualitative_report.md to styled HTML dashboard.
+"""Convert {code_market}_qualitative_report.md to styled HTML dashboard.
 
 Usage:
     python3 scripts/report_to_html.py \
-        --input output/002078_太阳纸业/qualitative_report.md \
-        --output output/002078_太阳纸业/qualitative_report.html
+        --input output/002078_太阳纸业/002078_SZ_qualitative_report.md \
+        --output output/002078_太阳纸业/002078_SZ_qualitative_report.html
 
 Optional:
     --template  Path to Jinja2 HTML template (default: shared/qualitative/templates/dashboard.html)
@@ -345,7 +345,7 @@ def build_verdict(md_text: str) -> dict:
 
 def main():
     parser = argparse.ArgumentParser(description="Convert qualitative report MD to HTML dashboard")
-    parser.add_argument("--input", required=True, help="Path to qualitative_report.md")
+    parser.add_argument("--input", required=True, help="Path to {code_market}_qualitative_report.md")
     parser.add_argument("--output", required=True, help="Output HTML path")
     parser.add_argument(
         "--template",
