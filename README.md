@@ -192,6 +192,27 @@ runner 直接生成的中间件：
 - 生成 / 刷新对应的 prompt 文件（`step5_qualitative_prompt.md` 或 `step7_valuation_prompt.md`）
 - 在终端打印已检查通过的输入文件、prompt 路径和下一步目标输出路径
 
+### 三报告成品验收
+
+`scripts/validate_reports.py` 用于检查一个 A 股标的输出目录是否已经达到三份正式报告的基础成品结构。它不会生成报告，只检查 qualitative、turtle、valuation 三份 Markdown 是否包含目标网页案例抽象出的关键模块。
+
+```bash
+# 检查一个完整 output 目录
+python scripts/validate_reports.py output/000538_acceptance
+
+# 检查单个报告文件
+python scripts/validate_reports.py \
+  output/000538_acceptance/000538_SZ_valuation_report.md \
+  --type valuation
+```
+
+验收器覆盖的核心结构：
+- qualitative：Business Quality Verdict、Quality Snapshot、D1-D6、深度总结、观察变量、结构化参数、数据来源、免责声明。
+- turtle：Strategy Verdict、Turtle Snapshot、Owner Earnings、穿透回报率、安全边际、价值陷阱、投资论点卡、基本面止损、事件监控、数据来源、免责声明。
+- valuation：Valuation Verdict、Valuation Snapshot、公司分类、方法权重、WACC、定性调整、DCF、PE Band、DDM、交叉验证、反向估值、估值区间、数据来源、免责声明。
+
+如果验收失败，优先修正对应报告 prompt/template，而不是放宽验收规则。
+
 ### 数据采集（仅 Phase 1A）
 
 ```bash

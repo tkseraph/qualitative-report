@@ -190,15 +190,15 @@ class TestFinancialTrends:
         assert "股息支付率" in result
 
     def test_payout_ratio_value(self):
-        """Verify payout ratio for 2024:
-        div_total = 0.97 * 636363.64 * 10000 = 6,172,727,308.0
+        """Verify payout ratio for 2024 uses actual cash payment year:
+        2023 profit distribution paid in 2024:
+        div_total = 0.87 * 636363.64 * 10000 = 5,536,363,668.0
         np = 10,120,000,000
-        payout = 6172727308 / 10120000000 * 100 ≈ 61.00%
+        payout = 5536363668 / 10120000000 * 100 ≈ 54.71%
         """
         client = _make_client_with_store()
         result = client._compute_financial_trends()
-        # Should contain ~61.00% for 2024
-        assert "61.0" in result or "60.9" in result or "61.00" in result
+        assert "54.71" in result
 
     def test_returns_none_when_income_missing(self):
         """Should return None if income data is missing."""
