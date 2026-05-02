@@ -123,6 +123,8 @@ def main() -> None:
     args = parser.parse_args()
 
     path = Path(args.path)
+    if not path.exists():
+        raise SystemExit(f"Path not found: {path}")
     if path.is_dir():
         results = validate_output_dir(path)
     else:

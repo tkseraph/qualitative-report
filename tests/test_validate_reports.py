@@ -1,4 +1,6 @@
-from validate_reports import validate_markdown
+from pathlib import Path
+
+from validate_reports import validate_markdown, validate_output_dir
 
 
 VALID_QUALITATIVE = """
@@ -172,3 +174,82 @@ def test_unknown_report_type_fails():
     result = validate_markdown(VALID_QUALITATIVE, "unknown")
     assert not result.ok
     assert "unknown report type" in result.messages[0].lower()
+
+
+def test_output_dir_validation_passes_when_three_reports_exist(tmp_path):
+    output_dir = tmp_path / "600018_sipg"
+    output_dir.mkdir()
+    (output_dir / "600018_SH_qualitative_report.md").write_text(VALID_QUALITATIVE, encoding="utf-8")
+    (output_dir / "600018_SH_turtle_report.md").write_text(VALID_TURTLE, encoding="utf-8")
+    (output_dir / "600018_SH_valuation_report.md").write_text(VALID_VALUATION, encoding="utf-8")
+
+    results = validate_output_dir(output_dir)
+
+    assert len(results) == 3
+    assert all(result.ok for result in results)
+
+
+def test_output_dir_validation_reports_missing_turtle_file(tmp_path):
+    output_dir = tmp_path / "600018_sipg"
+    output_dir.mkdir()
+    (output_dir / "600018_SH_qualitative_report.md").write_text(VALID_QUALITATIVE, encoding="utf-8")
+    (output_dir / "600018_SH_valuation_report.md").write_text(VALID_VALUATION, encoding="utf-8")
+
+    results = validate_output_dir(output_dir)
+    turtle_result = next(result for result in results if result.report_type == "turtle")
+
+    assert not turtle_result.ok
+    assert turtle_result.missing == ["file"]
+    assert "Missing turtle report" in turtle_result.messages[0]
+
+
+def test_cli_validates_single_file(tmp_path, capsys):
+    from validate_reports import main
+    import sys
+
+    report_path = tmp_path / "600018_SH_valuation_report.md"
+    report_path.write_text(VALID_VALUATION, encoding="utf-8")
+    old_argv = sys.argv
+    try:
+        sys.argv = ["validate_reports.py", str(report_path), "--type", "valuation"]
+        main()
+    finally:
+        sys.argv = old_argv
+
+    captured = capsys.readouterr()
+    assert "[PASS] valuation" in captured.out
+
+
+def test_cli_exits_nonzero_for_invalid_file(tmp_path):
+    from validate_reports import main
+    import sys
+    import pytest
+
+    report_path = tmp_path / "600018_SH_valuation_report.md"
+    report_path.write_text("# incomplete", encoding="utf-8")
+    old_argv = sys.argv
+    try:
+        sys.argv = ["validate_reports.py", str(report_path), "--type", "valuation"]
+        with pytest.raises(SystemExit) as exc:
+            main()
+    finally:
+        sys.argv = old_argv
+
+    assert exc.value.code == 1
+
+
+def test_cli_exits_with_clear_message_for_missing_path(tmp_path):
+    from validate_reports import main
+    import sys
+    import pytest
+
+    missing_path = tmp_path / "missing_output"
+    old_argv = sys.argv
+    try:
+        sys.argv = ["validate_reports.py", str(missing_path)]
+        with pytest.raises(SystemExit) as exc:
+            main()
+    finally:
+        sys.argv = old_argv
+
+    assert f"Path not found: {missing_path}" in str(exc.value)
