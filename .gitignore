@@ -48,6 +48,7 @@ tushare_data/
 video/
 
 # Project
+.worktrees/
 claude-progress.txt
 CLAUDE.md
 feature_list.json
