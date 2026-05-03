@@ -97,11 +97,15 @@ def parse_p13(section: str) -> dict:
 
 
 def parse_p4(section: str) -> dict:
-    largest = re.search(r"上海医药集团股份有限公司[\s\S]*?([\d,]+\.\d{2})", section)
-    return {
-        "largest_party": "上海医药集团股份有限公司及其下属子公司" if largest else "—",
-        "largest_amount": largest.group(1) if largest else "",
-    }
+    rows = []
+    for line in section.splitlines():
+        line = line.strip()
+        if not line or "年度报告" in line or "---" in line:
+            continue
+        match = re.match(r"(.+?(?:股份有限公司|有限公司|公司))\s+(.+)", line)
+        if match:
+            rows.append([match.group(1).strip(), match.group(2).strip(), "—", "治理观察对象"])
+    return {"rows": rows[:5]}
 
 
 def parse_p6(section: str) -> dict:
@@ -112,10 +116,15 @@ def parse_p6(section: str) -> dict:
 
 
 def parse_sub(section: str) -> dict:
-    minority = re.search(r"云白国际有限公司\s+([\d.]+)%", section)
-    return {
-        "minority_pct": minority.group(1) if minority else "",
-    }
+    rows = []
+    for line in section.splitlines():
+        line = line.strip()
+        if not line or "年度报告" in line or "---" in line:
+            continue
+        match = re.match(r"(.+?(?:S\.á\.r\.l\.|FZE|股份有限公司|有限公司|公司))\s+(.+?)\s+(设立|注销|投资设立|非同一控制下企业合并|同一控制下企业合并)$", line)
+        if match:
+            rows.append([match.group(1).strip(), "—", match.group(2).strip(), match.group(3).strip()])
+    return {"rows": rows[:8]}
 
 
 def fallback_p13_total_from_pdf(pdf_path: Path) -> str:
@@ -146,8 +155,10 @@ def build_report(output_dir: Path, data_pack_text: str, sections: dict) -> str:
     if p13 and not p13_info.get("total"):
         p13_info["total"] = fallback_p13_total_from_pdf(output_dir / "annual_report.pdf")
     p4_info = parse_p4(p4) if p4 else {}
+    p4_rows = p4_info.get("rows") or [["—", "关联交易/关联关系", "—", "当前披露未提取到明确主体"]]
     p6_info = parse_p6(p6) if p6 else {}
     sub_info = parse_sub(sub) if sub else {}
+    sub_rows = sub_info.get("rows") or [["—", "—", "—", "当前披露未提取到明确主体"]]
 
     parts = []
     parts.append(f"# PDF附注数据包 — {title_company}（{title_code}）")
@@ -212,15 +223,11 @@ def build_report(output_dir: Path, data_pack_text: str, sections: dict) -> str:
         f"pdf_sections.json -> P4；{extract_page_refs(p4 or '')}",
         [
             "关联方范围较广，涉及重要股东、联营企业及对子公司有重大影响的少数股东。",
-            f"当前披露中金额较大的采购类关联交易对象为 **{p4_info.get('largest_party', '—')}**。",
+            f"当前披露中可提取的关联方/关联关系主体数量为 **{len(p4_info.get('rows', []))}**。",
             "当前披露支持“真实存在且需要持续跟踪”，但未直接显示重大侵占证据。",
         ],
         first_nonempty_lines(p4 or "", 12),
-        [
-            [p4_info.get("largest_party", "—"), "采购商品、服务", p4_info.get("largest_amount", "—"), "当前披露中较大项"],
-            ["云南省国有股权运营管理有限公司", "重要股东", "—", "治理观察对象"],
-            ["新华都实业集团股份有限公司", "重要股东", "—", "治理观察对象"],
-        ],
+        p4_rows,
         ["关联方 / 类型", "关系/交易内容", "金额（元）", "备注"],
     )
 
@@ -248,16 +255,11 @@ def build_report(output_dir: Path, data_pack_text: str, sections: dict) -> str:
         f"pdf_sections.json -> SUB；{extract_page_refs(sub or '')}",
         [
             "公司属于明显的集团型结构，子公司层级多。",
-            f"重要非全资子公司云白国际有限公司少数股东持股比例约 **{sub_info.get('minority_pct', '—')}%**。",
+            f"当前披露中可提取的子公司/其他主体数量为 **{len(sub_info.get('rows', []))}**。",
             "控股结构判断和后续估值折价分析有了更硬的附注证据。",
         ],
         first_nonempty_lines(sub or "", 12),
-        [
-            ["云南白药集团中药资源有限公司", "100%", "药业 / 中药资源", "资源平台"],
-            ["云南省医药有限公司", "100%", "医药批发零售", "流通核心主体"],
-            ["云南白药集团健康产品有限公司", "100%", "健康日化生产销售", "健康品平台"],
-            ["云白国际有限公司", sub_info.get("minority_pct", "—") + ("% 少数股东" if sub_info.get("minority_pct") else ""), "贸易 / 非全资子公司", "重要非全资主体"],
-        ],
+        sub_rows,
         ["主体", "持股/少数股东", "业务性质", "备注"],
     )
 
