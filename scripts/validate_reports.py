@@ -37,6 +37,27 @@ def _missing_requirements(md_text: str, schema: ReportSchema) -> list[SchemaRequ
     ]
 
 
+def _template_placeholder_messages(md_text: str) -> list[str]:
+    messages: list[str] = []
+    brace_matches = sorted(
+        {
+            match.group(0)
+            for match in re.finditer(r"\{([^{}\n]{1,40})\}", md_text)
+            if not re.search(r"[:,]", match.group(1))
+        }
+    )
+    if brace_matches:
+        messages.append(
+            "Unreplaced template placeholder(s): " + ", ".join(brace_matches[:5])
+        )
+    todo_matches = sorted(set(re.findall(r"\b(?:TODO|TBD)\b", md_text, re.IGNORECASE)))
+    if todo_matches:
+        messages.append(
+            "Unreplaced template placeholder(s): " + ", ".join(todo_matches)
+        )
+    return messages
+
+
 def validate_markdown(md_text: str, report_type: str, path: str = "<memory>") -> ValidationResult:
     schema = REPORT_SCHEMAS.get(report_type)
     if schema is None:
@@ -50,16 +71,20 @@ def validate_markdown(md_text: str, report_type: str, path: str = "<memory>") ->
         )
 
     missing_requirements = _missing_requirements(md_text, schema)
+    placeholder_messages = _template_placeholder_messages(md_text)
     messages = [
         f"Missing {requirement.name}: {requirement.description} "
         f"(expected one of: {', '.join(requirement.any_keywords)})"
         for requirement in missing_requirements
-    ]
+    ] + placeholder_messages
+    missing = [requirement.name for requirement in missing_requirements]
+    if placeholder_messages:
+        missing.append("template_placeholder")
     return ValidationResult(
         report_type=report_type,
         path=path,
-        ok=not missing_requirements,
-        missing=[requirement.name for requirement in missing_requirements],
+        ok=not missing,
+        missing=missing,
         messages=messages,
     )
 

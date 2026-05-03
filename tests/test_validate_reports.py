@@ -176,6 +176,31 @@ def test_unknown_report_type_fails():
     assert "unknown report type" in result.messages[0].lower()
 
 
+def test_unreplaced_template_placeholder_fails():
+    text = VALID_TURTLE + "\n## 附录\n目标公司：{公司名称}\n"
+    result = validate_markdown(text, "turtle")
+
+    assert not result.ok
+    assert "template_placeholder" in result.missing
+    assert "Unreplaced template placeholder" in result.messages[0]
+
+
+def test_todo_placeholder_fails():
+    text = VALID_VALUATION + "\n## 风险提示\nTODO: 补充风险。\n"
+    result = validate_markdown(text, "valuation")
+
+    assert not result.ok
+    assert "template_placeholder" in result.missing
+    assert "TODO" in result.messages[0]
+
+
+def test_structured_parameter_braces_do_not_count_as_placeholders():
+    text = VALID_QUALITATIVE + '\n## 结构化参数\n| peers | {name: "同行公司", ticker: null} |\n'
+    result = validate_markdown(text, "qualitative")
+
+    assert result.ok
+
+
 def test_output_dir_validation_passes_when_three_reports_exist(tmp_path):
     output_dir = tmp_path / "600018_sipg"
     output_dir.mkdir()
