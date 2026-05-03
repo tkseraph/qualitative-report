@@ -234,6 +234,51 @@ def test_output_dir_validation_reports_inconsistent_report_prefixes(tmp_path):
     assert "same code_market prefix" in prefix_result.messages[0]
 
 
+def test_output_dir_validation_reports_content_identity_mismatch(tmp_path):
+    output_dir = tmp_path / "600018_sipg"
+    output_dir.mkdir()
+    (output_dir / "600018_SH_qualitative_report.md").write_text(VALID_QUALITATIVE, encoding="utf-8")
+    (output_dir / "600018_SH_turtle_report.md").write_text(VALID_TURTLE.replace("上港集团", "招商银行"), encoding="utf-8")
+    (output_dir / "600018_SH_valuation_report.md").write_text(VALID_VALUATION, encoding="utf-8")
+
+    results = validate_output_dir(output_dir)
+    identity_result = next(result for result in results if result.report_type == "directory")
+
+    assert not identity_result.ok
+    assert identity_result.missing == ["identity_mismatch"]
+    assert "same company identity" in identity_result.messages[0]
+
+
+def test_output_dir_validation_accepts_short_and_legal_company_names(tmp_path):
+    output_dir = tmp_path / "000538_yunnan_baiyao"
+    output_dir.mkdir()
+    qualitative = VALID_QUALITATIVE.replace("上港集团 · 商业质量评估报告", "云南白药集团股份有限公司 — 商业质量评估报告")
+    turtle = VALID_TURTLE.replace("上港集团 · 龟龟投资策略分析报告", "龟龟投资策略 · 分析报告：云南白药（000538.SZ）")
+    valuation = VALID_VALUATION.replace("上港集团 · 估值分析报告", "估值分析报告：云南白药（000538.SZ）")
+    (output_dir / "000538_SZ_qualitative_report.md").write_text(qualitative, encoding="utf-8")
+    (output_dir / "000538_SZ_turtle_report.md").write_text(turtle, encoding="utf-8")
+    (output_dir / "000538_SZ_valuation_report.md").write_text(valuation, encoding="utf-8")
+
+    results = validate_output_dir(output_dir)
+
+    assert all(result.ok for result in results)
+
+
+def test_output_dir_validation_accepts_alias_company_names_with_same_stock_code(tmp_path):
+    output_dir = tmp_path / "603288_haitian"
+    output_dir.mkdir()
+    qualitative = VALID_QUALITATIVE.replace("上港集团 · 商业质量评估报告", "佛山市海天调味食品股份有限公司 — 商业质量评估报告（603288.SH）")
+    turtle = VALID_TURTLE.replace("上港集团 · 龟龟投资策略分析报告", "龟龟投资策略 · 分析报告：海天味业（603288.SH）")
+    valuation = VALID_VALUATION.replace("上港集团 · 估值分析报告", "估值分析报告：海天味业（603288.SH）")
+    (output_dir / "603288_SH_qualitative_report.md").write_text(qualitative, encoding="utf-8")
+    (output_dir / "603288_SH_turtle_report.md").write_text(turtle, encoding="utf-8")
+    (output_dir / "603288_SH_valuation_report.md").write_text(valuation, encoding="utf-8")
+
+    results = validate_output_dir(output_dir)
+
+    assert all(result.ok for result in results)
+
+
 def test_cli_validates_single_file(tmp_path, capsys):
     from validate_reports import main
     import sys

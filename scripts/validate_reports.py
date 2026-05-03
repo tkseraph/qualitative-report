@@ -85,6 +85,76 @@ def _report_prefix(path: Path, report_type: str) -> str:
     return path.name.removesuffix(suffix)
 
 
+def _company_identity(md_text: str) -> str | None:
+    first_heading = next(
+        (line.strip() for line in md_text.splitlines() if line.strip().startswith("# ")),
+        "",
+    )
+    if not first_heading:
+        return None
+    heading = first_heading.removeprefix("# ").strip()
+    heading = re.sub(r"^(龟龟投资策略|估值分析报告|分析报告)[：:·\s-]*", "", heading).strip()
+    if "：" in heading:
+        heading = heading.rsplit("：", 1)[1].strip()
+    if ":" in heading:
+        heading = heading.rsplit(":", 1)[1].strip()
+    for separator in ("（", "(", "·", "—", "-"):
+        if separator in heading:
+            heading = heading.split(separator, 1)[0].strip()
+    return heading or None
+
+
+def _normalize_company_identity(identity: str) -> str:
+    normalized = re.sub(r"[\s·—\-（）()：:]", "", identity)
+    for suffix in ("集团股份有限公司", "股份有限公司", "集团有限公司", "有限公司", "集团"):
+        normalized = normalized.removesuffix(suffix)
+    return normalized
+
+
+def _stock_codes(md_text: str) -> set[str]:
+    return {
+        f"{match.group(1)}.{match.group(2).upper()}"
+        for match in re.finditer(r"\b(\d{6})[._](SH|SZ)\b", md_text, re.IGNORECASE)
+    }
+
+
+def _validate_content_identity(selected_files: dict[str, Path]) -> ValidationResult | None:
+    texts = {
+        report_type: path.read_text(encoding="utf-8")
+        for report_type, path in selected_files.items()
+    }
+    codes = {report_type: _stock_codes(text) for report_type, text in texts.items()}
+    known_codes = [next(iter(values)) for values in codes.values() if len(values) == 1]
+    if len(known_codes) == len(selected_files) and len(set(known_codes)) == 1:
+        return None
+
+    identities = {
+        report_type: _company_identity(text)
+        for report_type, text in texts.items()
+    }
+    known_identities = {identity for identity in identities.values() if identity}
+    normalized_identities = {
+        _normalize_company_identity(identity)
+        for identity in known_identities
+        if _normalize_company_identity(identity)
+    }
+    if len(normalized_identities) <= 1:
+        return None
+    return ValidationResult(
+        report_type="directory",
+        path=str(next(iter(selected_files.values())).parent),
+        ok=False,
+        missing=["identity_mismatch"],
+        messages=[
+            "Reports must describe the same company identity: "
+            + ", ".join(
+                f"{key}={value or '<unknown>'}"
+                for key, value in sorted(identities.items())
+            )
+        ],
+    )
+
+
 def validate_output_dir(output_dir: Path) -> list[ValidationResult]:
     report_matches = {
         "qualitative": _find_matches(output_dir, "*_qualitative_report.md"),
@@ -140,6 +210,9 @@ def validate_output_dir(output_dir: Path) -> list[ValidationResult]:
                     ],
                 )
             )
+        identity_result = _validate_content_identity(selected_files)
+        if identity_result is not None:
+            results.append(identity_result)
     return results
 
 
