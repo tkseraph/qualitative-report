@@ -84,6 +84,14 @@ def test_readme_documents_step7_quantitative_prerequisite_behavior():
     assert "Step 7 不要求 phase3_quantitative.md 预先存在" in readme
 
 
+def test_readme_documents_fresh_e2e_acceptance_flow():
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(encoding="utf-8")
+
+    assert "最终交付前建议选一个未手工修过的新 A 股样例" in readme
+    assert "runner → Step 5 → Step 7 → Step 8 → 目录验收" in readme
+    assert "不要只复用已人工补齐的 acceptance 样例" in readme
+
+
 def _write_market_pack(output_dir: Path) -> None:
     (output_dir / "data_pack_market.md").write_text("| 股票代码 | 600018.SH |\n", encoding="utf-8")
 

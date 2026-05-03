@@ -38,6 +38,14 @@ def test_turtle_report_template_requires_finished_report_shell():
         assert section in template
 
 
+def test_turtle_report_template_labels_extreme_threshold_prices_as_diagnostic():
+    template = read_text("strategies/turtle/phase3_valuation.md")
+
+    assert "异常低/高的目标买入价" in template
+    assert "诊断值" in template
+    assert "不得机械表述为基本面目标价" in template
+
+
 def test_turtle_coordinator_uses_canonical_report_filenames():
     coordinator = read_text("strategies/turtle/coordinator.md")
     agent_c_prompt = read_text("strategies/turtle/phase3_valuation.md")

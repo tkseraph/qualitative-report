@@ -182,6 +182,8 @@ runner 同时生成三份后续 workflow prompt：
 3. Step 8：基于 `strategies/valuation/*` 生成 valuation 最终估值报告。
 4. 对整个 output 目录运行三报告验收。
 
+最终交付前建议选一个未手工修过的新 A 股样例，完整跑一遍 runner → Step 5 → Step 7 → Step 8 → 目录验收，确认生成链路本身稳定；不要只复用已人工补齐的 acceptance 样例。
+
 ### 单标的续跑入口 v1.1（半自动）
 
 `scripts/continue_single_stock.py` 是当前项目的**半自动续跑入口**，用于在已有 `output_dir` 基础上继续准备 Step 5 / Step 7 / Step 8。它支持三个 stage：`step5`、`step7` 和 `step8`。
