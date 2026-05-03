@@ -38,12 +38,30 @@ def test_turtle_report_template_requires_finished_report_shell():
         assert section in template
 
 
+def test_qualitative_prompt_requires_financial_sector_adjustments():
+    prompt = read_text("shared/qualitative/qualitative_assessment_v2.md")
+
+    assert "金融/银行/保险" in prompt
+    assert "不得机械套用制造业" in prompt
+    assert "净息差" in prompt
+    assert "拨备覆盖率" in prompt
+
+
 def test_turtle_report_template_labels_extreme_threshold_prices_as_diagnostic():
     template = read_text("strategies/turtle/phase3_valuation.md")
 
     assert "异常低/高的目标买入价" in template
     assert "诊断值" in template
     assert "不得机械表述为基本面目标价" in template
+
+
+def test_turtle_report_template_requires_financial_sector_adjustments():
+    template = read_text("strategies/turtle/phase3_valuation.md")
+
+    assert "金融/银行/保险" in template
+    assert "不得机械套用制造业 Capex/D&A" in template
+    assert "资本充足率" in template
+    assert "拨备" in template
 
 
 def test_turtle_coordinator_uses_canonical_report_filenames():
@@ -76,6 +94,15 @@ def test_valuation_report_template_requires_finished_report_shell():
 
     for section in required_sections:
         assert section in template
+
+
+def test_valuation_template_requires_financial_sector_method_demotion():
+    template = read_text("strategies/valuation/references/report_template.md")
+
+    assert "金融/银行/保险" in template
+    assert "DCF/WACC" in template
+    assert "降权" in template
+    assert "PB/ROE" in template
 
 
 def test_valuation_coordinator_uses_canonical_report_filenames():

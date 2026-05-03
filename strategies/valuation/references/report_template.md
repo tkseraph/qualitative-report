@@ -72,6 +72,8 @@
 | 2 | {method_name} | {reason} |
 | 3 | {method_name} | {reason} |
 
+> 若样本属于金融/银行/保险，必须对 DCF/WACC 与普通 FCF 估值进行适配性检查；银行和保险的现金流表不等同于制造业自由现金流，异常偏高的 DCF 结果应降权或仅作上限参考。金融样本应优先解释 PB/ROE、PE Band、DDM/分红、资本充足率/偿付能力、拨备/准备金、资产质量和监管约束。
+
 ---
 
 ## 二、WACC 计算（引用 valuation_computed.md）
