@@ -201,6 +201,99 @@ def test_structured_parameter_braces_do_not_count_as_placeholders():
     assert result.ok
 
 
+def test_negative_dcf_without_demotion_fails():
+    text = VALID_VALUATION + """
+## DCF 结果
+原始 DCF 为 -96.57 元/股。
+## 七、估值结论
+最终判断：合理。
+"""
+    result = validate_markdown(text, "valuation")
+
+    assert not result.ok
+    assert "negative_dcf_demotion" in result.missing
+    assert any("negative DCF" in message for message in result.messages)
+
+
+def test_negative_dcf_with_diagnostic_demotion_passes():
+    text = VALID_VALUATION + """
+## DCF 结果
+原始 DCF 为 -96.57 元/股，但这是方法适配性诊断，DCF 已降权，不得机械主导最终估值结论。
+## 七、估值结论
+最终判断：合理。
+"""
+    result = validate_markdown(text, "valuation")
+
+    assert result.ok
+
+
+def test_negative_turtle_return_without_diagnostic_wait_fails():
+    text = VALID_TURTLE.replace("OBSERVE，仓位建议为观察。", "BUY，仓位建议为买入。") + """
+## 穿透回报率分析
+精算穿透回报率 -2.40%，AA 为负值。
+"""
+    result = validate_markdown(text, "turtle")
+
+    assert not result.ok
+    assert "negative_turtle_return" in result.missing
+    assert any("negative AA/GG" in message for message in result.messages)
+
+
+def test_negative_turtle_return_with_diagnostic_wait_passes():
+    text = VALID_TURTLE + """
+## 穿透回报率分析
+精算穿透回报率 -2.40%，AA/GG 为负值，作为诊断值处理；Strategy Verdict 为 WAIT / 不建仓。
+"""
+    result = validate_markdown(text, "turtle")
+
+    assert result.ok
+
+
+def test_negative_safety_margin_does_not_count_as_negative_turtle_return():
+    text = VALID_TURTLE + """
+## 穿透回报率分析
+精算穿透回报率 **0.36%** vs 门槛收益率 **3.75%**，安全边际 **-3.39 pct**。
+"""
+    result = validate_markdown(text, "turtle")
+
+    assert result.ok
+
+
+def test_negative_dcf_change_percent_does_not_count_as_negative_dcf():
+    text = VALID_VALUATION + """
+## 五、交叉验证
+| 方法 | Python默认 | 调整后 | 变动 | 权重 |
+| DCF_Scenarios | 722.62 | 618.66 | -14.39% | 35% |
+"""
+    result = validate_markdown(text, "valuation")
+
+    assert result.ok
+
+
+def test_negative_dcf_accepts_equivalent_demotion_wording():
+    text = VALID_VALUATION + """
+## DCF 结果
+原始 DCF 为 -96.57 元/股。负 DCF 是方法适配性诊断，DCF 权重降至 0%，不应主导最终估值结论。
+"""
+    result = validate_markdown(text, "valuation")
+
+    assert result.ok
+
+
+def test_negative_turtle_return_allows_observation_buy_trigger_language():
+    text = VALID_TURTLE + """
+## Strategy Verdict
+WAIT / 等待，不建仓。
+## 穿透回报率分析
+精算穿透回报率 -2.40%，AA/GG 为负值，作为诊断值处理。
+## 投资论点卡（Thesis Card）
+买入理由（观察状态下的潜在正面因素）：若 AA 转正且 GG 达标，可重新评估。
+"""
+    result = validate_markdown(text, "turtle")
+
+    assert result.ok
+
+
 def test_output_dir_validation_passes_when_three_reports_exist(tmp_path):
     output_dir = tmp_path / "600018_sipg"
     output_dir.mkdir()

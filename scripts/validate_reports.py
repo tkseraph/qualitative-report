@@ -58,6 +58,35 @@ def _template_placeholder_messages(md_text: str) -> list[str]:
     return messages
 
 
+def _content_quality_issues(md_text: str, report_type: str) -> list[tuple[str, str]]:
+    normalized = _normalize(md_text)
+    issues: list[tuple[str, str]] = []
+    if report_type == "valuation" and re.search(r"(?:原始|raw|结果|为|:|：)\s*DCF[^\n]{0,20}[-－]\s*\d|DCF\s*(?:为|:|：)\s*[-－]\s*\d", md_text, re.IGNORECASE):
+        has_diagnostic = "方法适配性诊断" in md_text
+        has_demotion = any(term in md_text for term in ("降权", "降级", "权重降至", "权重为 0", "权重为0"))
+        has_no_domination = any(term in md_text for term in ("不得机械主导", "不机械主导", "不应主导", "不能机械主导"))
+        if not has_diagnostic or not has_demotion or not has_no_domination:
+            issues.append((
+                "negative_dcf_demotion",
+                "Report mentions negative DCF but does not clearly demote it as a method-fit diagnostic that must not mechanically dominate valuation.",
+            ))
+    if report_type == "turtle" and re.search(r"(?:AA|GG|穿透回报率)\s*(?:为|=|:|：)?\s*(?:负值|[-－]\s*\d)", md_text, re.IGNORECASE):
+        has_diagnostic = "诊断值" in md_text
+        has_wait = any(term in normalized for term in ("wait", "不建仓", "等待", "观察"))
+        verdict_text = "\n".join(
+            line for line in md_text.splitlines()
+            if any(term in line for term in ("Strategy Verdict", "仓位建议", "行动建议", "一句话结论"))
+        )
+        verdict_normalized = _normalize(verdict_text)
+        has_buy_verdict = any(term in verdict_normalized for term in ("buy", "买入"))
+        if not has_diagnostic or has_buy_verdict or not has_wait:
+            issues.append((
+                "negative_turtle_return",
+                "Report mentions negative AA/GG or penetrating return but does not clearly treat it as diagnostic with WAIT / no-position guidance.",
+            ))
+    return issues
+
+
 def validate_markdown(md_text: str, report_type: str, path: str = "<memory>") -> ValidationResult:
     schema = REPORT_SCHEMAS.get(report_type)
     if schema is None:
@@ -72,14 +101,16 @@ def validate_markdown(md_text: str, report_type: str, path: str = "<memory>") ->
 
     missing_requirements = _missing_requirements(md_text, schema)
     placeholder_messages = _template_placeholder_messages(md_text)
+    content_issues = _content_quality_issues(md_text, report_type)
     messages = [
         f"Missing {requirement.name}: {requirement.description} "
         f"(expected one of: {', '.join(requirement.any_keywords)})"
         for requirement in missing_requirements
-    ] + placeholder_messages
+    ] + placeholder_messages + [message for _, message in content_issues]
     missing = [requirement.name for requirement in missing_requirements]
     if placeholder_messages:
         missing.append("template_placeholder")
+    missing.extend(name for name, _ in content_issues)
     return ValidationResult(
         report_type=report_type,
         path=path,

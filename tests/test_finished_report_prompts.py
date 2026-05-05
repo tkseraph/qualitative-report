@@ -47,6 +47,16 @@ def test_qualitative_prompt_requires_financial_sector_adjustments():
     assert "拨备覆盖率" in prompt
 
 
+def test_qualitative_prompt_requires_high_rd_capex_manufacturing_assessment():
+    prompt = read_text("shared/qualitative/qualitative_assessment_v2.md")
+
+    assert "高研发" in prompt
+    assert "高资本开支" in prompt
+    assert "技术迭代" in prompt
+    assert "客户议价" in prompt
+    assert "自由现金流" in prompt
+
+
 def test_turtle_report_template_labels_extreme_threshold_prices_as_diagnostic():
     template = read_text("strategies/turtle/phase3_valuation.md")
 
@@ -62,6 +72,17 @@ def test_turtle_report_template_requires_financial_sector_adjustments():
     assert "不得机械套用制造业 Capex/D&A" in template
     assert "资本充足率" in template
     assert "拨备" in template
+
+
+def test_turtle_report_template_requires_negative_aa_gg_diagnostic_handling():
+    template = read_text("strategies/turtle/phase3_valuation.md")
+
+    assert "AA/GG" in template
+    assert "负值" in template
+    assert "诊断值" in template
+    assert "不建仓" in template
+    assert "高研发" in template
+    assert "高资本开支" in template
 
 
 def test_turtle_coordinator_uses_canonical_report_filenames():
@@ -103,6 +124,25 @@ def test_valuation_template_requires_financial_sector_method_demotion():
     assert "DCF/WACC" in template
     assert "降权" in template
     assert "PB/ROE" in template
+
+
+def test_valuation_template_requires_negative_dcf_demotion_for_heavy_capex_samples():
+    template = read_text("strategies/valuation/references/report_template.md")
+
+    assert "负 DCF" in template
+    assert "方法适配性诊断" in template
+    assert "不得机械主导" in template
+    assert "高资本开支" in template
+
+
+def test_valuation_template_requires_growth_capex_method_convergence():
+    template = read_text("strategies/valuation/references/report_template.md")
+
+    assert "高研发" in template
+    assert "高资本开支" in template
+    assert "PEG" in template
+    assert "历史高增长" in template
+    assert "安全边际" in template
 
 
 def test_valuation_coordinator_uses_canonical_report_filenames():

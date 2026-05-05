@@ -55,6 +55,16 @@ def amount_to_mm(value: str) -> str:
         return "—"
 
 
+def markdown_cells(line: str) -> list[str]:
+    stripped = line.strip()
+    if not stripped.startswith("|") or not stripped.endswith("|"):
+        return []
+    cells = [cell.strip() for cell in stripped.strip("|").split("|")]
+    if cells and all(re.fullmatch(r":?-{3,}:?", cell) for cell in cells):
+        return []
+    return cells
+
+
 def parse_basic_info(data_pack_text: str) -> tuple[str, str]:
     company = ""
     code = ""
@@ -101,6 +111,10 @@ def parse_p4(section: str) -> dict:
     for line in section.splitlines():
         line = line.strip()
         if not line or "年度报告" in line or "---" in line:
+            continue
+        cells = markdown_cells(line)
+        if len(cells) >= 2 and any(suffix in cells[0] for suffix in ("股份有限公司", "有限公司", "公司")):
+            rows.append([cells[0], cells[1], "—", "治理观察对象"])
             continue
         match = re.match(r"(.+?(?:股份有限公司|有限公司|公司))\s+(.+)", line)
         if match:
@@ -287,10 +301,16 @@ def build_report(output_dir: Path, data_pack_text: str, sections: dict) -> str:
     if p3_found:
         p3_for_rows = p3_match.group(0) if 'p3_match' in locals() and p3_match else p3
         aging_rows = re.findall(r"(1年以内（含1年）|1至2年|2至3年|3年以上|合计)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})", p3_for_rows)
-        parts.append("| 账龄 | 期末账面余额（元） | 期初账面余额（元） |")
-        parts.append("|---|---:|---:|")
-        for label, end_bal, start_bal in aging_rows[:5]:
-            parts.append(f"| {label} | {end_bal} | {start_bal} |")
+        if aging_rows:
+            parts.append("| 账龄 | 期末账面余额（元） | 期初账面余额（元） |")
+            parts.append("|---|---:|---:|")
+            for label, end_bal, start_bal in aging_rows[:5]:
+                parts.append(f"| {label} | {end_bal} | {start_bal} |")
+        else:
+            parts.append("| 项目 | 内容 |")
+            parts.append("|---|---|")
+            parts.append("| 状态 | P3 已命中，但未提取到稳定账龄明细 |")
+            parts.append("| 临时替代 | 可从 data_pack_market.md 粗看应收账款规模变化，但不能替代账龄结构分析 |")
     else:
         parts.append("| 项目 | 内容 |")
         parts.append("|---|---|")

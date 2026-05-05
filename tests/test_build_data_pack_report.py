@@ -31,3 +31,29 @@ def test_report_pack_does_not_emit_unrelated_company_entities():
     assert "上海医药" not in report
     assert "新华都" not in report
     assert "万华化学（福建）能源科技有限公司" in report
+
+
+def test_report_pack_cleans_markdown_table_entity_rows():
+    sections = dict(SECTIONS)
+    sections["P4"] = """
+--- p.217 ---
+| 上海融和电科融资租赁有限公司及其部分子公司 | 联营企业 |
+| 上海杉杉锂电材料科技有限公司部分子公司 | 联营企业 |
+"""
+    report = build_report(Path("output/300750_catl_e2e_fresh"), DATA_PACK_MARKET, sections)
+
+    assert "| 上海融和电科融资租赁有限公司及其部分子公司 | 联营企业 | — | 治理观察对象 |" in report
+    assert "| | 上海融和" not in report
+
+
+def test_report_pack_keeps_p3_found_but_marks_empty_aging_rows_as_unavailable():
+    sections = dict(SECTIONS)
+    sections["P3"] = """
+--- p.165 ---
+| 银行存款 | 305,992,667 | 274,816,769 |
+| 合计 | 333,512,927 | 303,511,993 |
+"""
+    report = build_report(Path("output/300750_catl_e2e_fresh"), DATA_PACK_MARKET, sections)
+
+    assert "| 状态 | P3 已命中，但未提取到稳定账龄明细 |" in report
+    assert "| 账龄 | 期末账面余额（元） | 期初账面余额（元） |" not in report
