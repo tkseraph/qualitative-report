@@ -122,6 +122,51 @@ def parse_p4(section: str) -> dict:
     return {"rows": rows[:5]}
 
 
+P3_AGING_LABEL_RE = r"1年以内（含1年）|1年以内\(含1年\)|1年以内|1至2年|2至3年|3年以上|合计"
+P3_AMOUNT_RE = r"[-－]?\d[\d,]*(?:\.\d{1,2})?"
+
+
+def _normalize_p3_label(label: str) -> str:
+    return "1年以内（含1年）" if label in {"1年以内", "1年以内(含1年)"} else label
+
+
+def _find_p3_aging_block(section: str) -> str:
+    starts = [match.start() for match in re.finditer(r"应收账款", section)]
+    starts.extend(match.start() for match in re.finditer(r"按账龄披露", section))
+    for start in sorted(set(starts)):
+        candidate = section[start:]
+        if "按账龄披露" not in candidate[:500] and "1年以内" not in candidate[:500]:
+            continue
+        total_match = re.search(rf"合计\s+{P3_AMOUNT_RE}\s+{P3_AMOUNT_RE}", candidate)
+        if total_match:
+            return candidate[: total_match.end()]
+        return candidate
+    return section
+
+
+def _parse_p3_aging_rows(section: str) -> list[tuple[str, str, str]]:
+    rows: list[tuple[str, str, str]] = []
+    seen: set[str] = set()
+    for line in section.splitlines():
+        cells = markdown_cells(line)
+        if cells:
+            label = next((cell for cell in cells if re.fullmatch(P3_AGING_LABEL_RE, cell)), "")
+            amounts = [cell.replace(" ", "") for cell in cells if re.fullmatch(P3_AMOUNT_RE, cell.replace(" ", ""))]
+            if label and len(amounts) >= 2:
+                normalized_label = _normalize_p3_label(label)
+                if normalized_label not in seen:
+                    rows.append((normalized_label, amounts[0], amounts[1]))
+                    seen.add(normalized_label)
+            continue
+        match = re.search(rf"({P3_AGING_LABEL_RE})\s+({P3_AMOUNT_RE})\s+({P3_AMOUNT_RE})", line.replace(" ", " "))
+        if match:
+            normalized_label = _normalize_p3_label(match.group(1))
+            if normalized_label not in seen:
+                rows.append((normalized_label, match.group(2), match.group(3)))
+                seen.add(normalized_label)
+    return rows if any(label != "合计" for label, _, _ in rows) else []
+
+
 def parse_p3_pressure_summary(section: str, aging_rows: list[tuple[str, str, str]]) -> list[list[str]]:
     if not aging_rows:
         return []
@@ -312,8 +357,8 @@ def build_report(output_dir: Path, data_pack_text: str, sections: dict) -> str:
     parts.append("### 原文摘录")
     parts.append("")
     if p3_found:
-        p3_match = re.search(r"\d+[、.]\s*应收账款[\s\S]*?按账龄披露[\s\S]*?1年以内（含1年）[\s\S]*?3年以上\s+[\d,]+\.\d{2}\s+[\d,]+\.\d{2}[\s\S]*?合计\s+[\d,]+\.\d{2}\s+[\d,]+\.\d{2}", p3)
-        p3_excerpt = p3_match.group(0) if p3_match else first_nonempty_lines(p3, 12)
+        p3_block = _find_p3_aging_block(p3)
+        p3_excerpt = p3_block if _parse_p3_aging_rows(p3_block) else first_nonempty_lines(p3, 12)
         parts.append("> " + p3_excerpt.strip().replace("\n", "\n> "))
     else:
         parts.append("> 未提取到可用原文")
@@ -321,14 +366,14 @@ def build_report(output_dir: Path, data_pack_text: str, sections: dict) -> str:
     parts.append("### 最小结构化提取")
     parts.append("")
     if p3_found:
-        p3_for_rows = p3_match.group(0) if 'p3_match' in locals() and p3_match else p3
-        aging_rows = re.findall(r"(1年以内（含1年）|1至2年|2至3年|3年以上|合计)\s+([\d,]+\.\d{2})\s+([\d,]+\.\d{2})", p3_for_rows)
+        p3_for_rows = _find_p3_aging_block(p3)
+        aging_rows = _parse_p3_aging_rows(p3_for_rows)
         if aging_rows:
             parts.append("| 账龄 | 期末账面余额（元） | 期初账面余额（元） |")
             parts.append("|---|---:|---:|")
             for label, end_bal, start_bal in aging_rows[:5]:
                 parts.append(f"| {label} | {end_bal} | {start_bal} |")
-            pressure_rows = parse_p3_pressure_summary(p3_for_rows, aging_rows)
+            pressure_rows = parse_p3_pressure_summary(p3, aging_rows)
             if pressure_rows:
                 parts.append("")
                 parts.append("### 应收与坏账压力摘要")

@@ -186,7 +186,7 @@ runner 同时生成三份后续 workflow prompt：
 
 ### 单标的续跑入口 v1.1（半自动）
 
-`scripts/continue_single_stock.py` 是当前项目的**半自动续跑入口**，用于在已有 `output_dir` 基础上继续准备 Step 5 / Step 7 / Step 8。它支持三个 stage：`step5`、`step7` 和 `step8`。
+`scripts/continue_single_stock.py` 是当前项目的**半自动续跑入口**，用于在已有 `output_dir` 基础上继续准备 Step 5 / Step 7 / Step 8。它支持四个 stage：`step5`、`step7`、`step8` 和 `all`。
 
 ```bash
 # 准备 Step 5（qualitative 商业质量报告）
@@ -207,9 +207,9 @@ runner 同时生成三份后续 workflow prompt：
 
 它会：
 - 检查当前 stage 所需输入文件是否齐备
-- 生成 / 刷新对应的 prompt 文件：`step5_qualitative_prompt.md`、`step7_turtle_prompt.md` 或 `step8_valuation_prompt.md`
+- 生成 / 刷新对应的 prompt 文件：`step5_qualitative_prompt.md`、`step7_turtle_prompt.md` 或 `step8_valuation_prompt.md`；`--stage all` 会一次刷新三份 prompt
 - 在 Step 7 prompt 中列出 `phase3_quantitative.md`；若不存在，请按 turtle coordinator 先生成，再继续生成 `{code_market}_turtle_report.md`
-- 在终端打印已检查通过的输入文件、prompt 路径、下一步目标输出路径和单文件验收命令
+- 在终端打印已检查通过的输入文件、prompt 路径、下一步目标输出路径和可复制的验收命令
 
 ### 本地低摩擦工作流
 
@@ -328,11 +328,11 @@ python scripts/validate_reports.py \
 
 | 缩写 | 章节 | 说明 |
 |------|------|------|
-| P2 | 公司治理 | 公司治理结构 |
-| P3 | 会计政策 | 重要会计政策和会计估计 |
-| P4 | 应收账款 | 应收账款/票据附注 |
-| P6 | 合并报表 | 合并财务报表附注 |
-| P13 | 风险 | 风险提示/重大事项 |
+| P2 | 受限资产 | 受限货币资金、抵押质押资产、权利受限说明 |
+| P3 | 应收账款账龄 | 应收账款账龄、坏账准备、信用减值 |
+| P4 | 关联方交易 | 关联方关系、关联交易和治理观察对象 |
+| P6 | 或有负债 / 承诺 / 担保 / 诉讼 | 重要承诺事项、或有事项、担保、诉讼仲裁 |
+| P13 | 非经常性损益 | 非经常性损益项目及金额 |
 | MDA | 管理层讨论 | 经营情况讨论与分析 |
 | SUB | 子公司 | 主要子公司/长期股权投资明细 |
 

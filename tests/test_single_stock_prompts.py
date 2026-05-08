@@ -20,8 +20,15 @@ def test_step5_prompt_requires_qualitative_shell_and_validation():
     assert "Business Quality Verdict / 商业质量总体评级" in prompt
     assert "Quality Snapshot / 质量快照" in prompt
     assert "数据来源与免责声明" in prompt
-    assert "python scripts/validate_reports.py" in prompt
+    assert f"python {PROJECT_ROOT / 'scripts' / 'validate_reports.py'}" in prompt
     assert "--type qualitative" in prompt
+
+
+def test_prompt_validation_commands_use_absolute_validate_script():
+    prompt = build_step5_prompt(PROJECT_ROOT, OUTPUT_DIR, QUALITATIVE)
+
+    assert f"python {PROJECT_ROOT / 'scripts' / 'validate_reports.py'} {QUALITATIVE} --type qualitative" in prompt
+    assert "python scripts/validate_reports.py" not in prompt
 
 
 def test_step7_prompt_generates_turtle_report_and_validation():
@@ -33,7 +40,7 @@ def test_step7_prompt_generates_turtle_report_and_validation():
     assert "strategies/turtle/phase3_valuation.md" in prompt
     assert "Strategy Verdict" in prompt
     assert "Turtle Snapshot / 核心指标快照" in prompt
-    assert "python scripts/validate_reports.py" in prompt
+    assert f"python {PROJECT_ROOT / 'scripts' / 'validate_reports.py'}" in prompt
     assert "--type turtle" in prompt
 
 
@@ -46,7 +53,7 @@ def test_step8_prompt_generates_valuation_report_and_validation():
     assert "strategies/valuation/phase2_valuation.md" in prompt
     assert "Valuation Verdict / 估值总体判断" in prompt
     assert "Valuation Snapshot / 估值快照" in prompt
-    assert "python scripts/validate_reports.py" in prompt
+    assert f"python {PROJECT_ROOT / 'scripts' / 'validate_reports.py'}" in prompt
     assert "--type valuation" in prompt
 
 
@@ -56,7 +63,7 @@ def test_run_single_stock_script_mentions_three_prompt_files_and_directory_valid
     assert "step5_qualitative_prompt.md" in script
     assert "step7_turtle_prompt.md" in script
     assert "step8_valuation_prompt.md" in script
-    assert "validate_reports.py" in script
+    assert "_validation_command(project_root, output_dir)" in script
 
 
 def test_readme_documents_single_stock_three_report_flow():
@@ -167,6 +174,21 @@ def test_continue_cli_stage8_writes_valuation_prompt(tmp_path):
     assert "--type valuation" in prompt
 
 
+def test_continue_detects_code_prefix_from_existing_report_when_market_pack_lacks_code(tmp_path):
+    output_dir = tmp_path / "resume_case"
+    output_dir.mkdir()
+    (output_dir / "data_pack_market.md").write_text("# 数据包\n无股票代码字段\n", encoding="utf-8")
+    (output_dir / "600018_SH_qualitative_report.md").write_text("# qualitative", encoding="utf-8")
+    (output_dir / "valuation_computed.md").write_text("# computed", encoding="utf-8")
+
+    _run_continue(output_dir, "step8")
+
+    prompt_path = output_dir / "step8_valuation_prompt.md"
+    prompt = prompt_path.read_text(encoding="utf-8")
+    assert prompt_path.exists()
+    assert "600018_SH_valuation_report.md" in prompt
+
+
 def test_continue_cli_stage8_fails_when_valuation_computed_missing(tmp_path):
     output_dir = tmp_path / "600018_sipg"
     output_dir.mkdir()
@@ -195,7 +217,8 @@ def test_continue_cli_stage_all_writes_three_prompts_and_final_validation(tmp_pa
     assert (output_dir / "step8_valuation_prompt.md").exists()
     captured = capsys.readouterr()
     assert "Final three-report validation" in captured.out
-    assert f"python scripts/validate_reports.py {output_dir.resolve()}" in captured.out
+    validate_script = Path(__file__).resolve().parents[1] / "scripts" / "validate_reports.py"
+    assert f"python {validate_script} {output_dir.resolve()}" in captured.out
 
 
 def test_readme_documents_low_friction_local_workflow():
@@ -207,3 +230,23 @@ def test_readme_documents_low_friction_local_workflow():
     assert "--stage all" in readme
     assert "人工生成三报告" in readme
     assert "目录验收" in readme
+
+
+def test_readme_documents_continue_stage_all():
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(encoding="utf-8")
+
+    assert "step5" in readme
+    assert "step7" in readme
+    assert "step8" in readme
+    assert "all" in readme
+    assert "支持四个 stage" in readme
+
+
+def test_readme_documents_current_pdf_section_mapping():
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(encoding="utf-8")
+
+    assert "| P2 | 受限资产" in readme
+    assert "| P3 | 应收账款账龄" in readme
+    assert "| P4 | 关联方交易" in readme
+    assert "| P6 | 或有负债" in readme
+    assert "| P13 | 非经常性损益" in readme

@@ -80,3 +80,65 @@ def test_report_pack_extracts_p3_bad_debt_provision_summary():
     assert "| 3年以上应收占比 | 32.02% |" in report
     assert "| 坏账准备比例 | 35.35% |" in report
     assert "| 信用减值损失 | -1,155.11 百万元 |" in report
+
+
+def test_report_pack_extracts_p3_integer_aging_rows():
+    sections = dict(SECTIONS)
+    sections["P3"] = """
+--- p.165 ---
+| 银行存款 | 305,992,667 | 274,816,769 |
+| 合计 | 333,512,927 | 303,511,993 |
+
+4、应收账款
+（1）按账龄披露
+1年以内（含1年） 24,639,606,000 22,991,111,000
+1至2年 1,310,000,000 980,000,000
+2至3年 260,000,000 120,000,000
+3年以上 90,000,000 80,000,000
+合计 26,299,606,000 24,171,111,000
+"""
+    report = build_report(Path("output/300750_catl_e2e_fresh"), DATA_PACK_MARKET, sections)
+
+    assert "| 账龄 | 期末账面余额（元） | 期初账面余额（元） |" in report
+    assert "| 1年以内（含1年） | 24,639,606,000 | 22,991,111,000 |" in report
+    assert "| 合计 | 26,299,606,000 | 24,171,111,000 |" in report
+
+
+def test_report_pack_p3_excerpt_excludes_unrelated_preceding_bank_rows():
+    sections = dict(SECTIONS)
+    sections["P3"] = """
+--- p.165 ---
+| 银行存款 | 305,992,667 | 274,816,769 |
+| 合计 | 333,512,927 | 303,511,993 |
+
+应收账款
+按账龄披露
+1年以内（含1年） 24,639,606,000 22,991,111,000
+合计 24,639,606,000 22,991,111,000
+"""
+    report = build_report(Path("output/300750_catl_e2e_fresh"), DATA_PACK_MARKET, sections)
+
+    p3_section = report.split("## P3. 应收账款账龄（增强项）", 1)[1]
+    p3_section = p3_section.split("## 数据完整性说明", 1)[0]
+
+    assert "银行存款" not in p3_section
+    assert "| 合计 | 333,512,927 | 303,511,993 |" not in p3_section
+    assert "| 合计 | 24,639,606,000 | 22,991,111,000 |" in p3_section
+
+
+def test_report_pack_extracts_p3_markdown_table_integer_rows():
+    sections = dict(SECTIONS)
+    sections["P3"] = """
+--- p.165 ---
+应收账款
+按账龄披露
+| 账龄 | 期末余额 | 期初余额 |
+|---|---:|---:|
+| 1年以内（含1年） | 24,639,606,000 | 22,991,111,000 |
+| 1至2年 | 1,310,000,000 | 980,000,000 |
+| 合计 | 25,949,606,000 | 23,971,111,000 |
+"""
+    report = build_report(Path("output/300750_catl_e2e_fresh"), DATA_PACK_MARKET, sections)
+
+    assert "| 1年以内（含1年） | 24,639,606,000 | 22,991,111,000 |" in report
+    assert "| 合计 | 25,949,606,000 | 23,971,111,000 |" in report

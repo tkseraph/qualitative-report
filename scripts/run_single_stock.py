@@ -23,7 +23,7 @@ import sys
 from pathlib import Path
 
 from config import validate_stock_code
-from continue_single_stock import build_step5_prompt, build_step7_prompt, build_step8_prompt
+from continue_single_stock import _validation_command, build_step5_prompt, build_step7_prompt, build_step8_prompt
 
 
 def parse_args() -> argparse.Namespace:
@@ -132,7 +132,7 @@ def main() -> None:
     print(f"[runner] saved: {step8_prompt_path}")
 
     print("\n=== Final three-report validation ===")
-    print(f"python scripts/validate_reports.py {output_dir}")
+    print(_validation_command(project_root, output_dir))
 
     return
 

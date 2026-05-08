@@ -76,6 +76,24 @@ def _section_body(md_text: str, heading_keywords: tuple[str, ...]) -> str:
     return "\n".join(body).strip()
 
 
+def _contains_any(text: str, terms: tuple[str, ...]) -> bool:
+    return any(term in text for term in terms)
+
+
+def _heading_or_line_text(
+    md_text: str,
+    heading_keywords: tuple[str, ...],
+    line_keywords: tuple[str, ...],
+) -> str:
+    section_text = _section_body(md_text, heading_keywords)
+    matching_lines = [
+        line
+        for line in md_text.splitlines()
+        if any(keyword in line for keyword in line_keywords)
+    ]
+    return "\n".join([section_text, *matching_lines]).strip()
+
+
 def _finished_report_quality_issues(md_text: str) -> list[tuple[str, str]]:
     summary = _section_body(md_text, ("Executive Summary", "执行摘要"))
     compact_summary = re.sub(r"[\s。．.、，,；;：:|\-*]+", "", summary)
@@ -90,6 +108,46 @@ def _finished_report_quality_issues(md_text: str) -> list[tuple[str, str]]:
 def _content_quality_issues(md_text: str, report_type: str) -> list[tuple[str, str]]:
     normalized = _normalize(md_text)
     issues: list[tuple[str, str]] = _finished_report_quality_issues(md_text)
+    if report_type == "qualitative":
+        verdict_text = _heading_or_line_text(
+            md_text,
+            ("Business Quality Verdict", "商业质量总体评级", "商业质量"),
+            ("Business Quality Verdict", "商业质量", "护城河评级"),
+        )
+        summary_text = _section_body(md_text, ("Executive Summary", "执行摘要")) + "\n" + _section_body(md_text, ("深度总结", "核心投资逻辑"))
+        if _contains_any(verdict_text, ("商业质量优秀", "商业质量较强", "护城河评级强", "护城河评级较强")) and _contains_any(summary_text, ("护城河较弱", "无护城河", "商业质量较弱", "质量下滑")):
+            issues.append((
+                "qualitative_verdict_self_consistency",
+                "Business Quality Verdict conflicts with summary language describing weak moat or quality deterioration.",
+            ))
+    if report_type == "turtle":
+        strategy_text = _heading_or_line_text(
+            md_text,
+            ("Strategy Verdict", "策略结论"),
+            ("Strategy Verdict", "仓位建议", "行动建议", "一句话结论"),
+        )
+        caution_text = _section_body(md_text, ("行动建议", "仓位建议", "Executive Summary")) + "\n" + md_text
+        has_buy_verdict = bool(re.search(r"(?:^|[：:\s/])BUY(?:\s|/|，|。|$)|(?:建议|结论|仓位建议)(?:为)?买入", strategy_text, re.IGNORECASE))
+        has_wait_guidance = _contains_any(caution_text, ("WAIT", "wait", "不建仓", "安全边际不足", "低于门槛"))
+        if has_buy_verdict and has_wait_guidance:
+            issues.append((
+                "turtle_verdict_self_consistency",
+                "Strategy Verdict gives BUY / 买入 while the report also gives WAIT / no-position or insufficient-margin guidance.",
+            ))
+    if report_type == "valuation":
+        verdict_text = _heading_or_line_text(
+            md_text,
+            ("Valuation Verdict", "估值总体判断", "估值判断"),
+            ("Valuation Verdict", "估值判断", "估值总体判断"),
+        )
+        conclusion_text = _section_body(md_text, ("估值结论", "Valuation Conclusion", "Executive Summary", "执行摘要")) + "\n" + md_text
+        has_positive_verdict = bool(re.search(r"(?:估值判断|Valuation Verdict|估值总体判断)[^\n]{0,30}(?:低估|BUY|建议买入)", verdict_text, re.IGNORECASE))
+        has_negative_margin = _contains_any(conclusion_text, ("高估", "不便宜", "负安全边际", "安全边际不足", "缺乏安全边际"))
+        if has_positive_verdict and has_negative_margin:
+            issues.append((
+                "valuation_verdict_self_consistency",
+                "Valuation Verdict gives undervalued / buy language while the report conclusion says valuation is expensive or lacks safety margin.",
+            ))
     if report_type == "valuation" and re.search(r"(?:原始|raw|结果|为|:|：)\s*DCF[^\n]{0,20}[-－]\s*\d|DCF\s*(?:为|:|：)\s*[-－]\s*\d", md_text, re.IGNORECASE):
         has_diagnostic = "方法适配性诊断" in md_text
         has_demotion = any(term in md_text for term in ("降权", "降级", "权重降至", "权重为 0", "权重为0"))

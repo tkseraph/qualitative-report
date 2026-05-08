@@ -5,6 +5,7 @@ Supported stages:
 - step5: prepare qualitative analysis workflow prompt
 - step7: prepare turtle strategy workflow prompt
 - step8: prepare final valuation assembly workflow prompt
+- all: refresh all three prompts
 """
 
 from __future__ import annotations
@@ -28,11 +29,23 @@ def require_file(path: Path) -> None:
 
 def detect_code_prefix(output_dir: Path) -> str:
     data_pack_path = output_dir / "data_pack_market.md"
-    text = data_pack_path.read_text(encoding="utf-8")
-    code_match = re.search(r"股票代码\s*\|\s*(\S+)", text)
-    if not code_match:
-        raise SystemExit(f"Unable to determine stock code from: {data_pack_path}")
-    return code_match.group(1).strip().replace('.', '_')
+    text = data_pack_path.read_text(encoding="utf-8") if data_pack_path.exists() else ""
+    code_match = re.search(r"股票代码\s*(?:\||[:：])\s*([0-9]{6}[._](?:SH|SZ))", text, re.IGNORECASE)
+    if code_match:
+        return code_match.group(1).strip().replace('.', '_').upper()
+    for pattern in ("*_qualitative_report.md", "*_turtle_report.md", "*_valuation_report.md"):
+        for path in sorted(output_dir.glob(pattern)):
+            match = re.match(r"(\d{6}_(?:SH|SZ))_", path.name, re.IGNORECASE)
+            if match:
+                return match.group(1).upper()
+    raise SystemExit(f"Unable to determine stock code from: {data_pack_path}")
+
+
+def _validation_command(project_root: Path, target: Path, report_type: str | None = None) -> str:
+    command = f"python {project_root / 'scripts' / 'validate_reports.py'} {target}"
+    if report_type:
+        command += f" --type {report_type}"
+    return command
 
 
 def build_step5_prompt(project_root: Path, output_dir: Path, qualitative_report_path: Path) -> str:
@@ -57,7 +70,7 @@ def build_step5_prompt(project_root: Path, output_dir: Path, qualitative_report_
         + f"- {project_root / 'shared' / 'qualitative' / 'agents' / 'writing_style.md'}\n\n"
         + "必须保留成品报告外壳：Business Quality Verdict / 商业质量总体评级、Quality Snapshot / 质量快照、Executive Summary / 执行摘要、未来观察变量、数据来源与免责声明。\n"
         + f"输出文件：{qualitative_report_path}\n"
-        + f"生成后运行验收：python scripts/validate_reports.py {qualitative_report_path} --type qualitative"
+        + f"生成后运行验收：{_validation_command(project_root, qualitative_report_path, 'qualitative')}"
     )
 
 
@@ -81,7 +94,7 @@ def build_step7_prompt(project_root: Path, output_dir: Path, qualitative_report_
         + f"- {project_root / 'strategies' / 'turtle' / 'references' / 'factor_interface.md'}\n\n"
         + "必须保留成品报告外壳：Strategy Verdict、Turtle Snapshot / 核心指标快照、Executive Summary、数据来源与免责。\n"
         + f"输出文件：{turtle_report_path}\n"
-        + f"生成后运行验收：python scripts/validate_reports.py {turtle_report_path} --type turtle"
+        + f"生成后运行验收：{_validation_command(project_root, turtle_report_path, 'turtle')}"
     )
 
 
@@ -105,7 +118,7 @@ def build_step8_prompt(project_root: Path, output_dir: Path, qualitative_report_
         + f"- {project_root / 'strategies' / 'valuation' / 'references' / 'report_template.md'}\n\n"
         + "必须保留成品报告外壳：Valuation Verdict / 估值总体判断、Valuation Snapshot / 估值快照、Executive Summary、数据来源与免责声明。\n"
         + f"输出文件：{valuation_report_path}\n"
-        + f"生成后运行验收：python scripts/validate_reports.py {valuation_report_path} --type valuation"
+        + f"生成后运行验收：{_validation_command(project_root, valuation_report_path, 'valuation')}"
     )
 
 
@@ -146,7 +159,7 @@ def main() -> None:
             print(f"\n=== {stage} workflow prompt ===")
             print(prompt)
         print("\n=== Final three-report validation ===")
-        print(f"python scripts/validate_reports.py {output_dir}")
+        print(_validation_command(project_root, output_dir))
         return
 
     if args.stage == "step5":

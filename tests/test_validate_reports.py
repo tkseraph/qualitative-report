@@ -224,6 +224,49 @@ def test_negative_dcf_without_demotion_fails():
     assert any("negative DCF" in message for message in result.messages)
 
 
+def test_turtle_buy_verdict_conflicting_with_wait_guidance_fails():
+    text = VALID_TURTLE.replace(
+        "OBSERVE，仓位建议为观察。",
+        "BUY，仓位建议为买入。",
+    ) + """
+## 行动建议
+当前安全边际不足，低于门槛收益率，应 WAIT / 不建仓。
+"""
+    result = validate_markdown(text, "turtle")
+
+    assert not result.ok
+    assert "turtle_verdict_self_consistency" in result.missing
+    assert any("Strategy Verdict" in message for message in result.messages)
+
+
+def test_valuation_buy_verdict_conflicting_with_negative_safety_margin_fails():
+    text = VALID_VALUATION.replace(
+        "估值判断：合理，内在价值接近当前价格。",
+        "估值判断：低估，建议买入。",
+    ) + """
+## 七、估值结论
+当前价格不便宜，安全边际不足，最终不应给出买入结论。
+"""
+    result = validate_markdown(text, "valuation")
+
+    assert not result.ok
+    assert "valuation_verdict_self_consistency" in result.missing
+
+
+def test_qualitative_strong_verdict_conflicting_with_weak_moat_summary_fails():
+    text = VALID_QUALITATIVE.replace(
+        "商业质量较强，护城河评级较强。",
+        "商业质量优秀，护城河评级强。",
+    ).replace(
+        "核心投资逻辑，优势与风险。",
+        "深度总结：公司护城河较弱，竞争优势不明显，质量下滑。",
+    )
+    result = validate_markdown(text, "qualitative")
+
+    assert not result.ok
+    assert "qualitative_verdict_self_consistency" in result.missing
+
+
 def test_negative_dcf_with_diagnostic_demotion_passes():
     text = VALID_VALUATION + """
 ## DCF 结果
@@ -231,6 +274,16 @@ def test_negative_dcf_with_diagnostic_demotion_passes():
 ## 七、估值结论
 最终判断：合理。
 """
+    result = validate_markdown(text, "valuation")
+
+    assert result.ok
+
+
+def test_valuation_high_verdict_can_say_not_a_buy_without_self_consistency_failure():
+    text = VALID_VALUATION.replace(
+        "估值判断：合理，内在价值接近当前价格。",
+        "估值判断：高估，当前安全边际不足，不适合作为估值驱动买入。",
+    )
     result = validate_markdown(text, "valuation")
 
     assert result.ok
@@ -253,6 +306,16 @@ def test_negative_turtle_return_with_diagnostic_wait_passes():
 ## 穿透回报率分析
 精算穿透回报率 -2.40%，AA/GG 为负值，作为诊断值处理；Strategy Verdict 为 WAIT / 不建仓。
 """
+    result = validate_markdown(text, "turtle")
+
+    assert result.ok
+
+
+def test_turtle_wait_verdict_can_mention_not_buying_without_self_consistency_failure():
+    text = VALID_TURTLE.replace(
+        "OBSERVE，仓位建议为观察。",
+        "WAIT / 不建仓。当前价格已经不是买入就是胜利的价格，应等待。",
+    )
     result = validate_markdown(text, "turtle")
 
     assert result.ok
