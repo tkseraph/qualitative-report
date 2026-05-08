@@ -57,6 +57,16 @@ def test_qualitative_prompt_requires_high_rd_capex_manufacturing_assessment():
     assert "自由现金流" in prompt
 
 
+def test_qualitative_prompt_requires_quality_decline_and_value_trap_assessment():
+    prompt = read_text("shared/qualitative/qualitative_assessment_v2.md")
+
+    assert "质量下滑" in prompt
+    assert "价值陷阱" in prompt
+    assert "ROE 下滑" in prompt
+    assert "应收账款账龄" in prompt
+    assert "坏账准备" in prompt
+
+
 def test_turtle_report_template_labels_extreme_threshold_prices_as_diagnostic():
     template = read_text("strategies/turtle/phase3_valuation.md")
 
@@ -83,6 +93,17 @@ def test_turtle_report_template_requires_negative_aa_gg_diagnostic_handling():
     assert "不建仓" in template
     assert "高研发" in template
     assert "高资本开支" in template
+
+
+def test_turtle_report_template_requires_value_trap_filters():
+    template = read_text("strategies/turtle/phase3_valuation.md")
+
+    assert "价值陷阱" in template
+    assert "低 PE" in template
+    assert "低 PB" in template
+    assert "应收账款账龄" in template
+    assert "坏账" in template
+    assert "真实现金回报" in template
 
 
 def test_turtle_coordinator_uses_canonical_report_filenames():
@@ -143,6 +164,18 @@ def test_valuation_template_requires_growth_capex_method_convergence():
     assert "PEG" in template
     assert "历史高增长" in template
     assert "安全边际" in template
+
+
+def test_valuation_template_requires_value_trap_demotion_rules():
+    template = read_text("strategies/valuation/references/report_template.md")
+
+    assert "价值陷阱" in template
+    assert "高应收" in template
+    assert "慢回款" in template
+    assert "低 PE" in template
+    assert "低 PB" in template
+    assert "坏账" in template
+    assert "收缩式修复" in template
 
 
 def test_valuation_coordinator_uses_canonical_report_filenames():

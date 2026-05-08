@@ -50,7 +50,7 @@ def first_nonempty_lines(text: str, n: int = 8) -> str:
 
 def amount_to_mm(value: str) -> str:
     try:
-        return f"{float(value.replace(',', '')) / 1_000_000:.2f}"
+        return f"{float(value.replace(',', '')) / 1_000_000:,.2f}"
     except Exception:
         return "—"
 
@@ -120,6 +120,28 @@ def parse_p4(section: str) -> dict:
         if match:
             rows.append([match.group(1).strip(), match.group(2).strip(), "—", "治理观察对象"])
     return {"rows": rows[:5]}
+
+
+def parse_p3_pressure_summary(section: str, aging_rows: list[tuple[str, str, str]]) -> list[list[str]]:
+    if not aging_rows:
+        return []
+    end_balances = {label: float(end_bal.replace(",", "")) for label, end_bal, _ in aging_rows}
+    total = end_balances.get("合计")
+    if not total:
+        return []
+    rows = []
+    overdue_2y = end_balances.get("2至3年", 0.0) + end_balances.get("3年以上", 0.0)
+    overdue_3y = end_balances.get("3年以上", 0.0)
+    rows.append(["2年以上应收占比", f"{overdue_2y / total * 100:.2f}%"])
+    rows.append(["3年以上应收占比", f"{overdue_3y / total * 100:.2f}%"])
+    provision_match = re.search(r"坏账准备\s+([\d,]+\.\d{2})[\s\S]{0,30}?计提比例\s+([\d.]+)%", section)
+    if provision_match:
+        rows.append(["坏账准备", f"{amount_to_mm(provision_match.group(1))} 百万元"])
+        rows.append(["坏账准备比例", f"{provision_match.group(2)}%"])
+    impairment_match = re.search(r"信用减值损失\s+([-－]?[\d,]+\.\d{2})", section)
+    if impairment_match:
+        rows.append(["信用减值损失", f"{amount_to_mm(impairment_match.group(1).replace('－', '-'))} 百万元"])
+    return rows
 
 
 def parse_p6(section: str) -> dict:
@@ -306,6 +328,15 @@ def build_report(output_dir: Path, data_pack_text: str, sections: dict) -> str:
             parts.append("|---|---:|---:|")
             for label, end_bal, start_bal in aging_rows[:5]:
                 parts.append(f"| {label} | {end_bal} | {start_bal} |")
+            pressure_rows = parse_p3_pressure_summary(p3_for_rows, aging_rows)
+            if pressure_rows:
+                parts.append("")
+                parts.append("### 应收与坏账压力摘要")
+                parts.append("")
+                parts.append("| 指标 | 数值 |")
+                parts.append("|---|---:|")
+                for label, value in pressure_rows:
+                    parts.append(f"| {label} | {value} |")
         else:
             parts.append("| 项目 | 内容 |")
             parts.append("|---|---|")

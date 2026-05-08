@@ -166,3 +166,21 @@ def test_continue_cli_stage8_fails_when_valuation_computed_missing(tmp_path):
 
     assert "Missing required file" in str(exc.value)
     assert "valuation_computed.md" in str(exc.value)
+
+
+def test_continue_cli_stage_all_writes_three_prompts_and_final_validation(tmp_path, capsys):
+    output_dir = tmp_path / "600018_sipg"
+    output_dir.mkdir()
+    _write_market_pack(output_dir)
+    (output_dir / "annual_report.pdf").write_bytes(b"%PDF-1.4\n")
+    (output_dir / "pdf_sections.json").write_text("{}", encoding="utf-8")
+    (output_dir / "valuation_computed.md").write_text("# computed", encoding="utf-8")
+
+    _run_continue(output_dir, "all")
+
+    assert (output_dir / "step5_qualitative_prompt.md").exists()
+    assert (output_dir / "step7_turtle_prompt.md").exists()
+    assert (output_dir / "step8_valuation_prompt.md").exists()
+    captured = capsys.readouterr()
+    assert "Final three-report validation" in captured.out
+    assert f"python scripts/validate_reports.py {output_dir.resolve()}" in captured.out

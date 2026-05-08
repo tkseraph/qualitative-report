@@ -57,3 +57,26 @@ def test_report_pack_keeps_p3_found_but_marks_empty_aging_rows_as_unavailable():
 
     assert "| 状态 | P3 已命中，但未提取到稳定账龄明细 |" in report
     assert "| 账龄 | 期末账面余额（元） | 期初账面余额（元） |" not in report
+
+
+def test_report_pack_extracts_p3_bad_debt_provision_summary():
+    sections = dict(SECTIONS)
+    sections["P3"] = """
+--- p.201 ---
+按账龄披露
+1年以内（含1年） 3,023,617,578.34 3,952,161,005.42
+1至2年 1,422,590,980.39 2,187,625,702.82
+2至3年 1,474,908,059.25 1,358,536,384.41
+3年以上 2,788,511,924.53 2,291,847,935.77
+合计 8,709,628,542.51 9,790,171,028.42
+按坏账计提方法分类披露
+账面余额 8,709,628,542.51 坏账准备 3,079,230,000.00 计提比例 35.35%
+信用减值损失 -1,155,110,000.00
+"""
+    report = build_report(Path("output/002271_yuhong_e2e_fresh"), DATA_PACK_MARKET, sections)
+
+    assert "### 应收与坏账压力摘要" in report
+    assert "| 2年以上应收占比 | 48.95% |" in report
+    assert "| 3年以上应收占比 | 32.02% |" in report
+    assert "| 坏账准备比例 | 35.35% |" in report
+    assert "| 信用减值损失 | -1,155.11 百万元 |" in report

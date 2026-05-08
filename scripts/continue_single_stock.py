@@ -17,7 +17,7 @@ from pathlib import Path
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Prepare workflow continuation prompts")
     parser.add_argument("--output-dir", required=True, help="Existing output directory")
-    parser.add_argument("--stage", required=True, choices=["step5", "step7", "step8"], help="Continuation stage")
+    parser.add_argument("--stage", required=True, choices=["step5", "step7", "step8", "all"], help="Continuation stage")
     return parser.parse_args()
 
 
@@ -120,6 +120,34 @@ def main() -> None:
     qualitative_report_path = output_dir / f"{code_prefix}_qualitative_report.md"
     turtle_report_path = output_dir / f"{code_prefix}_turtle_report.md"
     valuation_report_path = output_dir / f"{code_prefix}_valuation_report.md"
+
+    if args.stage == "all":
+        required = [
+            output_dir / "data_pack_market.md",
+            output_dir / "annual_report.pdf",
+            output_dir / "pdf_sections.json",
+            output_dir / "valuation_computed.md",
+        ]
+        for path in required:
+            require_file(path)
+        prompts = [
+            ("step5", output_dir / "step5_qualitative_prompt.md", qualitative_report_path, build_step5_prompt(project_root, output_dir, qualitative_report_path)),
+            ("step7", output_dir / "step7_turtle_prompt.md", turtle_report_path, build_step7_prompt(project_root, output_dir, qualitative_report_path, turtle_report_path)),
+            ("step8", output_dir / "step8_valuation_prompt.md", valuation_report_path, build_step8_prompt(project_root, output_dir, qualitative_report_path, valuation_report_path)),
+        ]
+        print("[continue] stage=all")
+        print("[continue] checked input files:")
+        for path in required:
+            print(f"- {path}")
+        for stage, prompt_path, target_output, prompt in prompts:
+            prompt_path.write_text(prompt + "\n", encoding="utf-8")
+            print(f"[continue] {stage} prompt file: {prompt_path}")
+            print(f"[continue] {stage} target output: {target_output}")
+            print(f"\n=== {stage} workflow prompt ===")
+            print(prompt)
+        print("\n=== Final three-report validation ===")
+        print(f"python scripts/validate_reports.py {output_dir}")
+        return
 
     if args.stage == "step5":
         required = [
