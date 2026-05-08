@@ -92,6 +92,18 @@ def test_readme_documents_fresh_e2e_acceptance_flow():
     assert "不要只复用已人工补齐的 acceptance 样例" in readme
 
 
+def test_readme_documents_fixed_acceptance_matrix():
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(encoding="utf-8")
+
+    assert "固定验收矩阵" in readme
+    assert "金融 / 银行" in readme
+    assert "强周期 / 重资产" in readme
+    assert "高研发 / 高资本开支成长制造" in readme
+    assert "质量下滑 / 价值陷阱" in readme
+    assert "优质但估值不便宜" in readme
+    assert "688668_dingtong_e2e_fresh" in readme
+
+
 def _write_market_pack(output_dir: Path) -> None:
     (output_dir / "data_pack_market.md").write_text("| 股票代码 | 600018.SH |\n", encoding="utf-8")
 
@@ -184,3 +196,14 @@ def test_continue_cli_stage_all_writes_three_prompts_and_final_validation(tmp_pa
     captured = capsys.readouterr()
     assert "Final three-report validation" in captured.out
     assert f"python scripts/validate_reports.py {output_dir.resolve()}" in captured.out
+
+
+def test_readme_documents_low_friction_local_workflow():
+    readme = (Path(__file__).resolve().parents[1] / "README.md").read_text(encoding="utf-8")
+
+    assert "本地低摩擦工作流" in readme
+    assert "run_single_stock.py" in readme
+    assert "continue_single_stock.py" in readme
+    assert "--stage all" in readme
+    assert "人工生成三报告" in readme
+    assert "目录验收" in readme

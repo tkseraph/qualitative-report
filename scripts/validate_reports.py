@@ -58,9 +58,38 @@ def _template_placeholder_messages(md_text: str) -> list[str]:
     return messages
 
 
+def _section_body(md_text: str, heading_keywords: tuple[str, ...]) -> str:
+    lines = md_text.splitlines()
+    start = None
+    for index, line in enumerate(lines):
+        stripped = line.strip()
+        if stripped.startswith("#") and any(keyword in stripped for keyword in heading_keywords):
+            start = index + 1
+            break
+    if start is None:
+        return ""
+    body: list[str] = []
+    for line in lines[start:]:
+        if line.strip().startswith("#"):
+            break
+        body.append(line)
+    return "\n".join(body).strip()
+
+
+def _finished_report_quality_issues(md_text: str) -> list[tuple[str, str]]:
+    summary = _section_body(md_text, ("Executive Summary", "执行摘要"))
+    compact_summary = re.sub(r"[\s。．.、，,；;：:|\-*]+", "", summary)
+    if compact_summary in {"", "内容", "待补充", "略", "暂无"}:
+        return [(
+            "generic_executive_summary",
+            "Executive Summary must contain a finished conclusion, not a generic placeholder.",
+        )]
+    return []
+
+
 def _content_quality_issues(md_text: str, report_type: str) -> list[tuple[str, str]]:
     normalized = _normalize(md_text)
-    issues: list[tuple[str, str]] = []
+    issues: list[tuple[str, str]] = _finished_report_quality_issues(md_text)
     if report_type == "valuation" and re.search(r"(?:原始|raw|结果|为|:|：)\s*DCF[^\n]{0,20}[-－]\s*\d|DCF\s*(?:为|:|：)\s*[-－]\s*\d", md_text, re.IGNORECASE):
         has_diagnostic = "方法适配性诊断" in md_text
         has_demotion = any(term in md_text for term in ("降权", "降级", "权重降至", "权重为 0", "权重为0"))

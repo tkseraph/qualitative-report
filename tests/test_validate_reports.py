@@ -162,6 +162,15 @@ def test_valid_valuation_report_passes():
     assert result.missing == []
 
 
+def test_generic_executive_summary_fails_finished_report_quality_check():
+    text = VALID_TURTLE.replace("当前安全边际不足。", "内容。")
+    result = validate_markdown(text, "turtle")
+
+    assert not result.ok
+    assert "generic_executive_summary" in result.missing
+    assert any("Executive Summary" in message for message in result.messages)
+
+
 def test_missing_requirement_fails_with_actionable_message():
     text = VALID_VALUATION.replace("## 方法 3: DDM\n股息、DPS、分红。\n", "")
     result = validate_markdown(text, "valuation")

@@ -211,6 +211,28 @@ runner 同时生成三份后续 workflow prompt：
 - 在 Step 7 prompt 中列出 `phase3_quantitative.md`；若不存在，请按 turtle coordinator 先生成，再继续生成 `{code_market}_turtle_report.md`
 - 在终端打印已检查通过的输入文件、prompt 路径、下一步目标输出路径和单文件验收命令
 
+### 本地低摩擦工作流
+
+本项目默认本地运行，不需要 push 或 PR。单标的 fresh E2E 建议按以下顺序执行：
+
+1. 用 `scripts/run_single_stock.py` 生成确定性中间件和初始 prompt：`data_pack_market.md`、`pdf_sections.json`、`data_pack_report.md`、`valuation_computed.md`。
+2. 如果已有 output 目录需要刷新三个 prompt，运行：
+
+```bash
+.venv/bin/python scripts/continue_single_stock.py \
+  --output-dir output/<code_company> \
+  --stage all
+```
+
+3. 按 `step5_qualitative_prompt.md`、`step7_turtle_prompt.md`、`step8_valuation_prompt.md` 人工生成三报告。
+4. 对整个目录运行目录验收：
+
+```bash
+python scripts/validate_reports.py output/<code_company>
+```
+
+这个流程的目标是把本地闭环固定为：`run_single_stock.py → continue_single_stock.py --stage all → 人工生成三报告 → 目录验收`。
+
 ### 三报告成品验收
 
 `scripts/validate_reports.py` 用于检查一个 A 股标的输出目录是否已经达到三份正式报告的基础成品结构。它不会生成报告，只检查 qualitative、turtle、valuation 三份 Markdown 是否包含目标网页案例抽象出的关键模块。
@@ -239,6 +261,18 @@ python scripts/validate_reports.py \
 - valuation：Valuation Verdict、Valuation Snapshot、公司分类、方法权重、WACC、定性调整、DCF、PE Band、DDM、交叉验证、反向估值、估值区间、数据来源、免责声明。
 
 如果验收失败，优先修正对应报告 prompt/template，而不是放宽验收规则。
+
+### 固定验收矩阵
+
+每次修改 prompt、report pack、估值规则或 `validate_reports.py` 后，建议至少覆盖以下本地样例矩阵，避免只对单一公司过拟合：
+
+| 样例类型 | 代表目录 | 主要验证点 |
+|---|---|---|
+| 金融 / 银行 | `output/600036_cmb_e2e_fresh` | 银行现金流、资本充足率、拨备和监管约束不能机械套制造业 DCF |
+| 强周期 / 重资产 | `output/600309_wanhua_e2e_fresh` | 负 DCF 或异常 DCF 必须降级为方法适配性诊断 |
+| 高研发 / 高资本开支成长制造 | `output/300750_catl_e2e_fresh` | 高质量公司也要检查 PEG、DCF、PS、DDM 收敛和自由现金流可分配性 |
+| 质量下滑 / 价值陷阱 | `output/002271_yuhong_e2e_fresh` | 低 PE、低 PB、股价回撤不能自动视为便宜，必须检查应收、坏账和现金流修复质量 |
+| 优质但估值不便宜 | `output/688668_dingtong_e2e_fresh` | 经营改善和成长属性真实时，也要防止高估值、高股价分位直接导向买入结论 |
 
 ### 数据采集（仅 Phase 1A）
 
