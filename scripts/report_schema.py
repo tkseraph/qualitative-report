@@ -61,6 +61,21 @@ QUALITATIVE_REQUIREMENTS: tuple[SchemaRequirement, ...] = SHARED_REQUIREMENTS + 
         "KPI cards for ROE, moat, sustainability, management, cycle, capital intensity, and barriers.",
     ),
     SchemaRequirement(
+        "core contradiction and refutation",
+        ("核心矛盾", "反证条件", "推翻判断", "重评"),
+        "First-screen section that states the core tension and what would refute or downgrade the judgment.",
+    ),
+    SchemaRequirement(
+        "maximum risk",
+        ("最大风险", "核心风险", "主要风险", "主要约束"),
+        "First-screen risk or constraint that balances the business-quality judgment.",
+    ),
+    SchemaRequirement(
+        "monitoring thresholds",
+        ("预警阈值", "触发后的重评动作", "当前值 / 本地证据"),
+        "Future observation variables with current evidence, thresholds, and re-evaluation actions.",
+    ),
+    SchemaRequirement(
         "six dimensions",
         ("维度一", "维度二", "维度三", "维度四", "维度五", "维度六"),
         "D1-D6 qualitative analysis structure.",

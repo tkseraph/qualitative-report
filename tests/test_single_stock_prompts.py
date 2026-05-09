@@ -24,6 +24,39 @@ def test_step5_prompt_requires_qualitative_shell_and_validation():
     assert "--type qualitative" in prompt
 
 
+def test_step5_prompt_requires_sample_quality_first_screen_and_refutation():
+    prompt = build_step5_prompt(PROJECT_ROOT, OUTPUT_DIR, QUALITATIVE)
+
+    assert "核心矛盾与反证条件" in prompt
+    assert "最大风险" in prompt
+    assert "反证条件" in prompt
+    assert "预警阈值" in prompt
+    assert "触发后的重评动作" in prompt
+
+
+def test_step5_prompt_requires_wechat_readability_constraints():
+    prompt = build_step5_prompt(PROJECT_ROOT, OUTPUT_DIR, QUALITATIVE)
+
+    assert "微信公众号" in prompt
+    assert "段落不要过长" in prompt
+    assert "表格" in prompt
+    assert "每张表" in prompt
+    assert "结论句" in prompt
+
+
+def test_step5_prompt_requires_wechat_polish_source_structure():
+    prompt = build_step5_prompt(PROJECT_ROOT, OUTPUT_DIR, QUALITATIVE)
+
+    assert "首屏摘要卡" in prompt
+    assert "公司本质" in prompt
+    assert "护城河来源" in prompt
+    assert "本章小结" in prompt
+    assert "3-5 列" in prompt or "3-5列" in prompt
+    assert "结构化参数（机器读取 / 附录）" in prompt
+    assert "深度总结" in prompt
+    assert "公司本质、为什么优势真实、最大风险、重评触发" in prompt
+
+
 def test_prompt_validation_commands_use_absolute_validate_script():
     prompt = build_step5_prompt(PROJECT_ROOT, OUTPUT_DIR, QUALITATIVE)
 

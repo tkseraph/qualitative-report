@@ -94,6 +94,27 @@ def _heading_or_line_text(
     return "\n".join([section_text, *matching_lines]).strip()
 
 
+def _core_contradiction_refutation_section_exists(md_text: str) -> bool:
+    section_text = _section_body(md_text, ("核心矛盾", "反证条件"))
+    return bool(section_text) and _contains_any(
+        section_text,
+        ("反证", "推翻判断", "重评", "下调", "降级"),
+    )
+
+
+def _first_screen_text(md_text: str) -> str:
+    lines = md_text.splitlines()
+    headings_seen = 0
+    collected: list[str] = []
+    for line in lines:
+        if line.startswith("## "):
+            headings_seen += 1
+            if headings_seen > 4:
+                break
+        collected.append(line)
+    return "\n".join(collected)
+
+
 def _finished_report_quality_issues(md_text: str) -> list[tuple[str, str]]:
     summary = _section_body(md_text, ("Executive Summary", "执行摘要"))
     compact_summary = re.sub(r"[\s。．.、，,；;：:|\-*]+", "", summary)
@@ -119,6 +140,31 @@ def _content_quality_issues(md_text: str, report_type: str) -> list[tuple[str, s
             issues.append((
                 "qualitative_verdict_self_consistency",
                 "Business Quality Verdict conflicts with summary language describing weak moat or quality deterioration.",
+            ))
+        if not _core_contradiction_refutation_section_exists(md_text):
+            issues.append((
+                "core_contradiction_refutation",
+                "Qualitative report must include a core contradiction / refutation section that states what would downgrade the judgment.",
+            ))
+        future_observation = _section_body(md_text, ("未来观察", "观察变量", "监控KPI"))
+        has_current_evidence_language = _contains_any(
+            future_observation,
+            ("当前值", "本地证据", "当前值 / 本地证据", "当前证据"),
+        )
+        has_threshold_language = _contains_any(future_observation, ("预警阈值", "警戒线"))
+        has_action_language = _contains_any(future_observation, ("触发后的重评动作", "重评动作", "重评"))
+        if not future_observation or not has_current_evidence_language or not has_threshold_language or not has_action_language:
+            issues.append((
+                "future_observation_thresholds",
+                "Future observation variables must include current evidence, warning thresholds, and re-evaluation actions.",
+            ))
+        first_screen = _first_screen_text(md_text)
+        has_advantage = _contains_any(first_screen, ("优势", "护城河", "壁垒", "竞争力", "质量较强", "商业质量"))
+        has_risk = _contains_any(first_screen, ("风险", "约束", "压力", "下行"))
+        if not has_advantage or not has_risk:
+            issues.append((
+                "qualitative_first_screen_balance",
+                "Qualitative first-screen sections must state both the core advantage/moat and the main risk or constraint.",
             ))
     if report_type == "turtle":
         strategy_text = _heading_or_line_text(

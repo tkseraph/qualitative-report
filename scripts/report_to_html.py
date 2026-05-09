@@ -13,12 +13,11 @@ Optional:
 
 import argparse
 import re
-import os
 import sys
 from pathlib import Path
 
 import markdown
-from jinja2 import Environment, FileSystemLoader, BaseLoader
+from jinja2 import Environment, BaseLoader
 
 
 # ---------------------------------------------------------------------------
@@ -53,6 +52,7 @@ _FALLBACK_CSS = """
 .badge-strong{background:var(--green-bg);color:var(--green)}.badge-fairly-strong{background:var(--green-bg);color:var(--green)}.badge-medium{background:var(--amber-bg);color:var(--amber)}.badge-weak{background:var(--red-bg);color:var(--red)}
 .report-body table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13px}.report-body th{text-align:left;padding:8px 10px;font-weight:400;color:var(--text3);border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:.5px}.report-body th:not(:first-child){text-align:right}.report-body td{padding:8px 10px;border-bottom:1px solid var(--border)}.report-body td:not(:first-child){text-align:right;font-family:'JetBrains Mono',monospace;font-size:13px}.report-body tr:last-child td{border-bottom:none}
 .report-body .callout{padding:16px 20px;background:var(--bg2);border-radius:8px;margin:20px 0;font-size:14px;color:var(--text2);line-height:1.7}
+.report-body .first-screen-card table,.report-body .future-observations table{margin:0}.report-body .first-screen-card td:not(:first-child),.report-body .future-observations td:not(:first-child){text-align:left;font-family:inherit}.report-body .core-contradiction{border-left:4px solid var(--amber)}
 .report-body details{margin:16px 0}.report-body summary{cursor:pointer;font-size:13px;font-weight:500;text-transform:uppercase;letter-spacing:1px;color:var(--text3);padding:10px 0;border-bottom:1px solid var(--border);user-select:none}.report-body details .details-content{padding:16px 0;font-size:14px;color:var(--text2)}
 .report-body .footer{margin-top:56px;padding-top:20px;border-top:1px solid var(--border);font-size:12px;color:var(--text3);line-height:1.8}
 a{color:var(--blue);text-decoration:none}a:hover{text-decoration:underline}
@@ -104,10 +104,15 @@ def parse_report(md_text: str) -> dict:
         "stock_code": "",
         "generated_date": "",
         "executive_summary": "",
+        "first_screen_card": "",
+        "core_contradiction": "",
+        "future_observations": "",
         "dimensions": [],
         "conclusion": "",
         "parameters_table": "",
     }
+
+    md_text = md_text.lstrip()
 
     # --- Extract title metadata ---
     # Format A: "# 定性分析 — CompanyName (Code)"
@@ -146,6 +151,14 @@ def parse_report(md_text: str) -> dict:
 
         if "执行摘要" in title or "Executive Summary" in title:
             result["executive_summary"] = md_to_html(body)
+        elif "Business Quality Verdict" in title or "商业质量总体评级" in title:
+            table_match = re.search(r"((?:\|.*\|\n)+)", body)
+            if table_match and "项目" in table_match.group(1) and "结论" in table_match.group(1):
+                result["first_screen_card"] = md_to_html(table_match.group(1))
+        elif "核心矛盾" in title or "反证条件" in title:
+            result["core_contradiction"] = md_to_html(body)
+        elif "未来观察" in title or "观察变量" in title:
+            result["future_observations"] = md_to_html(body)
         elif "总结与投资启示" in title or "深度总结" in title:
             result["conclusion"] = md_to_html(body)
         elif "结构化参数" in title:
@@ -340,49 +353,28 @@ def build_verdict(md_text: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Main
+# Rendering
 # ---------------------------------------------------------------------------
 
-def main():
-    parser = argparse.ArgumentParser(description="Convert qualitative report MD to HTML dashboard")
-    parser.add_argument("--input", required=True, help="Path to {code_market}_qualitative_report.md")
-    parser.add_argument("--output", required=True, help="Output HTML path")
-    parser.add_argument(
-        "--template",
-        default=None,
-        help="Jinja2 template path (default: auto-detect from project root)",
-    )
-    parser.add_argument(
-        "--appendix",
-        default=None,
-        help="Path to framework_guide.md (default: auto-detect)",
-    )
-    parser.add_argument(
-        "--data-pack",
-        default=None,
-        help="Path to data_pack_market.md for header stats extraction",
-    )
-    parser.add_argument(
-        "--standalone",
-        action="store_true",
-        help="Embed CSS inline for local viewing (no external CSS dependencies)",
-    )
-    args = parser.parse_args()
-
-    # --- Resolve paths ---
+def render_report_html(
+    input_path: Path,
+    output_path: Path,
+    *,
+    template_path: Path | None = None,
+    appendix_path: Path | None = None,
+    data_pack_path: Path | None = None,
+    standalone: bool = False,
+) -> None:
+    """Render a qualitative markdown report to the HTML dashboard template."""
     project_root = Path(__file__).resolve().parent.parent
-    template_path = Path(args.template) if args.template else project_root / "shared" / "qualitative" / "templates" / "dashboard.html"
-    appendix_path = Path(args.appendix) if args.appendix else project_root / "shared" / "qualitative" / "references" / "framework_guide.md"
-    input_path = Path(args.input)
-    output_path = Path(args.output)
+    template_path = template_path or project_root / "shared" / "qualitative" / "templates" / "dashboard.html"
+    appendix_path = appendix_path or project_root / "shared" / "qualitative" / "references" / "framework_guide.md"
 
     if not input_path.exists():
-        print(f"Error: Input file not found: {input_path}", file=sys.stderr)
-        sys.exit(1)
+        raise FileNotFoundError(f"Input file not found: {input_path}")
 
     if not template_path.exists():
-        print(f"Error: Template not found: {template_path}", file=sys.stderr)
-        sys.exit(1)
+        raise FileNotFoundError(f"Template not found: {template_path}")
 
     # --- Read inputs ---
     md_text = input_path.read_text(encoding="utf-8")
@@ -400,14 +392,14 @@ def main():
 
     # Try to get data pack info
     dp_info = {"current_price": "", "market_cap": "", "exchange": "", "industry": ""}
-    data_pack_path = Path(args.data_pack) if args.data_pack else input_path.parent / "data_pack_market.md"
+    data_pack_path = data_pack_path or input_path.parent / "data_pack_market.md"
     if data_pack_path.exists():
         dp_text = data_pack_path.read_text(encoding="utf-8")
         dp_info = extract_data_pack_info(dp_text)
 
     # --- Load standalone CSS if requested ---
     standalone_css = ""
-    if args.standalone:
+    if standalone:
         # Try to load style.css + report.css from terancejiang.com project
         site_root = Path.home() / "Projects" / "Teracnejiang.com"
         css_parts = []
@@ -444,6 +436,9 @@ def main():
         standalone_css=standalone_css,
         kpi_cards=kpi_cards,
         executive_summary=report["executive_summary"],
+        first_screen_card=report["first_screen_card"],
+        core_contradiction=report["core_contradiction"],
+        future_observations=report["future_observations"],
         dimensions=report["dimensions"],
         conclusion=report["conclusion"],
         parameters_table=report["parameters_table"],
@@ -460,6 +455,50 @@ def main():
     print(f"  Has executive summary: {bool(report['executive_summary'])}")
     print(f"  Has conclusion: {bool(report['conclusion'])}")
     print(f"  Has appendix: {bool(appendix_html)}")
+
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+def main():
+    parser = argparse.ArgumentParser(description="Convert qualitative report MD to HTML dashboard")
+    parser.add_argument("--input", required=True, help="Path to {code_market}_qualitative_report.md")
+    parser.add_argument("--output", required=True, help="Output HTML path")
+    parser.add_argument(
+        "--template",
+        default=None,
+        help="Jinja2 template path (default: auto-detect from project root)",
+    )
+    parser.add_argument(
+        "--appendix",
+        default=None,
+        help="Path to framework_guide.md (default: auto-detect)",
+    )
+    parser.add_argument(
+        "--data-pack",
+        default=None,
+        help="Path to data_pack_market.md for header stats extraction",
+    )
+    parser.add_argument(
+        "--standalone",
+        action="store_true",
+        help="Embed CSS inline for local viewing (no external CSS dependencies)",
+    )
+    args = parser.parse_args()
+
+    try:
+        render_report_html(
+            Path(args.input),
+            Path(args.output),
+            template_path=Path(args.template) if args.template else None,
+            appendix_path=Path(args.appendix) if args.appendix else None,
+            data_pack_path=Path(args.data_pack) if args.data_pack else None,
+            standalone=args.standalone,
+        )
+    except FileNotFoundError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

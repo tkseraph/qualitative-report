@@ -53,6 +53,14 @@
   </div>
 </div>
 
+<!-- First-screen Card -->
+{% if first_screen_card %}
+<h2>首屏摘要</h2>
+<div class="callout first-screen-card">
+  {{ first_screen_card }}
+</div>
+{% endif %}
+
 <!-- KPI Snapshot -->
 <h2>Quality Snapshot</h2>
 
@@ -86,6 +94,22 @@
 </div>
 {% endif %}
 
+<!-- Core Contradiction -->
+{% if core_contradiction %}
+<h2>核心矛盾与反证条件</h2>
+<div class="callout core-contradiction">
+  {{ core_contradiction }}
+</div>
+{% endif %}
+
+<!-- Future Observations -->
+{% if future_observations %}
+<h2>未来观察变量</h2>
+<div class="callout future-observations">
+  {{ future_observations }}
+</div>
+{% endif %}
+
 <!-- Dimension Sections -->
 {% for dim in dimensions %}
 <h2>{{ dim.title }}{% if dim.badge %} &nbsp;<span class="tag {{ dim.badge_class }}">{{ dim.badge }}</span>{% endif %}</h2>
@@ -101,7 +125,7 @@
 <!-- Structured Parameters -->
 {% if parameters_table %}
 <details>
-  <summary>Structured Parameters · 结构化参数表</summary>
+  <summary>Structured Parameters · 结构化参数（机器读取 / 附录）</summary>
   <div class="details-content">
     {{ parameters_table }}
   </div>

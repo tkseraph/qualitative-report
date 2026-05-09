@@ -7,41 +7,49 @@ VALID_QUALITATIVE = """
 # 上港集团 · 商业质量评估报告
 
 ## Business Quality Verdict
-商业质量较强，护城河评级较强。
+商业质量较强，护城河评级较强。核心优势是港口区位和规模网络，最大风险是外贸周期与吞吐量下行压力。
 
 ## Quality Snapshot
-5年平均ROE、护城河评级、可持续性、管理层评价。
+5年平均ROE、护城河评级、可持续性、管理层评价、资本强度、周期性。
 
 ## Executive Summary
-公司具备区位和规模优势。
+公司具备区位和规模优势，但仍受全球贸易周期影响。核心判断是港口资产质量较强，主要约束是吞吐量和费率弹性有限。
+
+## 核心矛盾与反证条件
+核心矛盾：区位和规模优势支持稳定现金流，但外贸周期会限制成长弹性。
+反证条件：若吞吐量连续下滑、ROE 低于资本成本或核心港区份额下降，应重评护城河评级。
 
 ## 维度一：商业模式与资本特征
-内容。
+结论：公司商业模式清晰，核心优势来自港口区位和吞吐网络，但资本开支和周期波动需要跟踪。
 
 ## 维度二：竞争优势与护城河
-内容。
+结论：护城河较强，来源于稀缺港口资源、网络规模和区域集疏运体系。
 
 ## 维度三：外部环境
-内容。
+结论：外部环境与贸易周期相关，监管风险中低，周期下行是主要风险。
 
 ## 维度四：管理层与治理
-内容。
+结论：治理整体稳健，资本配置和分红纪律可接受，但关联交易仍需跟踪。
 
 ## 维度五：MD&A 解读
-内容。
+结论：管理层叙事与经营数据大体一致，后续需验证吞吐量与费率表现。
 
 ## 维度六：控股结构分析
-内容。
+结论：集团结构需要关注，但当前不构成核心折价因素。
 
 ## 深度总结
-核心投资逻辑，优势与风险。
+核心投资逻辑是稀缺港口资产带来稳定现金流，优势在区位、规模与网络，风险在外贸周期、资本开支和费率弹性。
 
 ## 未来观察变量
-监控KPI。
+| 观察变量 / 监控KPI | 当前值 / 本地证据 | 预警阈值 | 触发后的重评动作 |
+|---|---|---|---|
+| 5年平均ROE | 10% | 低于资本成本 | 下调商业质量评级 |
+| 吞吐量增长 | 稳定 | 连续两年下滑 | 重评周期位置 |
+| 资本开支 | 可控 | Capex/D&A 显著高于历史中位数 | 重评现金质量 |
 
 ## 结构化参数
-| parameter | value |
-| --- | --- |
+| 参数 | 取值 |
+|---|---|
 | moat_rating | 较强 |
 | roe_5y_avg | 10% |
 
@@ -148,6 +156,106 @@ def test_valid_qualitative_report_passes():
     result = validate_markdown(VALID_QUALITATIVE, "qualitative")
     assert result.ok
     assert result.missing == []
+
+
+def test_valid_qualitative_report_accepts_primary_risk_wording():
+    text = VALID_QUALITATIVE.replace(
+        "最大风险是外贸周期与吞吐量下行压力",
+        "主要风险是外贸周期与吞吐量下行压力",
+    ).replace(
+        "主要约束是吞吐量和费率弹性有限",
+        "关键压力是吞吐量和费率弹性有限",
+    )
+    result = validate_markdown(text, "qualitative")
+
+    assert result.ok
+    assert result.missing == []
+
+
+def test_valid_qualitative_report_accepts_refutation_language_without_repeated_labels():
+    text = VALID_QUALITATIVE.replace(
+        "核心矛盾：区位和规模优势支持稳定现金流，但外贸周期会限制成长弹性。\n反证条件：若吞吐量连续下滑、ROE 低于资本成本或核心港区份额下降，应重评护城河评级。",
+        "区位和规模优势支持稳定现金流，但外贸周期会限制成长弹性。\n若吞吐量连续下滑、ROE 低于资本成本或核心港区份额下降，应重评护城河评级；若核心港区份额持续下降，则推翻判断。",
+    )
+    result = validate_markdown(text, "qualitative")
+
+    assert result.ok
+    assert result.missing == []
+
+
+def test_qualitative_report_requires_core_contradiction_and_refutation_section():
+    text = VALID_QUALITATIVE.replace(
+        "## 核心矛盾与反证条件\n核心矛盾：区位和规模优势支持稳定现金流，但外贸周期会限制成长弹性。\n反证条件：若吞吐量连续下滑、ROE 低于资本成本或核心港区份额下降，应重评护城河评级。\n\n",
+        "",
+    )
+    result = validate_markdown(text, "qualitative")
+
+    assert not result.ok
+    assert "core_contradiction_refutation" in result.missing
+    assert any("core contradiction" in message.lower() or "反证" in message for message in result.messages)
+
+
+def test_qualitative_report_requires_future_observation_thresholds():
+    text = VALID_QUALITATIVE.replace(
+        "| 观察变量 / 监控KPI | 当前值 / 本地证据 | 预警阈值 | 触发后的重评动作 |\n|---|---|---|---|\n| 5年平均ROE | 10% | 低于资本成本 | 下调商业质量评级 |\n| 吞吐量增长 | 稳定 | 连续两年下滑 | 重评周期位置 |\n| 资本开支 | 可控 | Capex/D&A 显著高于历史中位数 | 重评现金质量 |",
+        "监控KPI。",
+    )
+    result = validate_markdown(text, "qualitative")
+
+    assert not result.ok
+    assert "future_observation_thresholds" in result.missing
+    assert any("Future observation" in message or "观察变量" in message for message in result.messages)
+
+
+def test_qualitative_report_requires_future_observation_action_language():
+    text = VALID_QUALITATIVE.replace(
+        "| 观察变量 / 监控KPI | 当前值 / 本地证据 | 预警阈值 | 触发后的重评动作 |\n|---|---|---|---|\n| 5年平均ROE | 10% | 低于资本成本 | 下调商业质量评级 |\n| 吞吐量增长 | 稳定 | 连续两年下滑 | 重评周期位置 |\n| 资本开支 | 可控 | Capex/D&A 显著高于历史中位数 | 重评现金质量 |",
+        "| 观察变量 / 监控KPI | 当前值 / 本地证据 | 预警阈值 | 处理说明 |\n|---|---|---|---|\n| 5年平均ROE | 10% | 低于资本成本 | 记录变化 |\n| 吞吐量增长 | 稳定 | 连续两年下滑 | 记录变化 |\n| 资本开支 | 可控 | Capex/D&A 显著高于历史中位数 | 记录变化 |",
+    )
+    result = validate_markdown(text, "qualitative")
+
+    assert not result.ok
+    assert "future_observation_thresholds" in result.missing
+
+
+def test_qualitative_report_requires_future_observation_threshold_language_when_action_exists():
+    text = VALID_QUALITATIVE.replace(
+        "| 观察变量 / 监控KPI | 当前值 / 本地证据 | 预警阈值 | 触发后的重评动作 |\n|---|---|---|---|\n| 5年平均ROE | 10% | 低于资本成本 | 下调商业质量评级 |\n| 吞吐量增长 | 稳定 | 连续两年下滑 | 重评周期位置 |\n| 资本开支 | 可控 | Capex/D&A 显著高于历史中位数 | 重评现金质量 |",
+        "| 观察变量 / 监控KPI | 当前值 / 本地证据 | 触发后的重评动作 |\n|---|---|---|\n| 5年平均ROE | 10% | 下调商业质量评级 |\n| 吞吐量增长 | 稳定 | 重评周期位置 |\n| 资本开支 | 可控 | 重评现金质量 |",
+    )
+    result = validate_markdown(text, "qualitative")
+
+    assert not result.ok
+    assert "future_observation_thresholds" in result.missing
+
+
+def test_qualitative_report_requires_future_observation_current_evidence_language():
+    text = VALID_QUALITATIVE.replace(
+        "| 观察变量 / 监控KPI | 当前值 / 本地证据 | 预警阈值 | 触发后的重评动作 |\n|---|---|---|---|\n| 5年平均ROE | 10% | 低于资本成本 | 下调商业质量评级 |\n| 吞吐量增长 | 稳定 | 连续两年下滑 | 重评周期位置 |\n| 资本开支 | 可控 | Capex/D&A 显著高于历史中位数 | 重评现金质量 |",
+        "| 观察变量 / 监控KPI | 预警阈值 | 触发后的重评动作 |\n|---|---|---|\n| 5年平均ROE | 低于资本成本 | 下调商业质量评级 |\n| 吞吐量增长 | 连续两年下滑 | 重评周期位置 |\n| 资本开支 | Capex/D&A 显著高于历史中位数 | 重评现金质量 |",
+    )
+    result = validate_markdown(text, "qualitative")
+
+    assert not result.ok
+    assert "future_observation_thresholds" in result.missing
+
+
+def test_qualitative_first_screen_requires_advantage_and_risk():
+    text = VALID_QUALITATIVE.replace(
+        "商业质量较强，护城河评级较强。核心优势是港口区位和规模网络，最大风险是外贸周期与吞吐量下行压力。",
+        "商业质量较强，护城河评级较强。公司经营稳健。",
+    ).replace(
+        "公司具备区位和规模优势，但仍受全球贸易周期影响。核心判断是港口资产质量较强，主要约束是吞吐量和费率弹性有限。",
+        "公司经营稳健，资产质量较好。",
+    ).replace(
+        "核心矛盾：区位和规模优势支持稳定现金流，但外贸周期会限制成长弹性。\n反证条件：若吞吐量连续下滑、ROE 低于资本成本或核心港区份额下降，应重评护城河评级。",
+        "核心矛盾：区位和规模优势支持稳定现金流。\n反证条件：若港区份额下降，应复核护城河评级。",
+    )
+    result = validate_markdown(text, "qualitative")
+
+    assert not result.ok
+    assert "qualitative_first_screen_balance" in result.missing
+    assert any("first-screen" in message.lower() for message in result.messages)
 
 
 def test_valid_turtle_report_passes():
@@ -258,7 +366,7 @@ def test_qualitative_strong_verdict_conflicting_with_weak_moat_summary_fails():
         "商业质量较强，护城河评级较强。",
         "商业质量优秀，护城河评级强。",
     ).replace(
-        "核心投资逻辑，优势与风险。",
+        "核心投资逻辑是稀缺港口资产带来稳定现金流，优势在区位、规模与网络，风险在外贸周期、资本开支和费率弹性。",
         "深度总结：公司护城河较弱，竞争优势不明显，质量下滑。",
     )
     result = validate_markdown(text, "qualitative")
