@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+try:
+    from report_contract import report_contract
+except ModuleNotFoundError:  # package import: scripts.report_schema
+    from scripts.report_contract import report_contract
+
 
 @dataclass(frozen=True)
 class SchemaRequirement:
@@ -215,19 +220,19 @@ REPORT_SCHEMAS: dict[str, ReportSchema] = {
     "qualitative": ReportSchema(
         report_type="qualitative",
         display_name="商业质量评估报告",
-        market_scope="A-share",
+        market_scope=report_contract("qualitative")["market_scope"],
         requirements=QUALITATIVE_REQUIREMENTS,
     ),
     "turtle": ReportSchema(
         report_type="turtle",
         display_name="龟龟投资策略分析报告",
-        market_scope="A-share",
+        market_scope=report_contract("turtle")["market_scope"],
         requirements=TURTLE_REQUIREMENTS,
     ),
     "valuation": ReportSchema(
         report_type="valuation",
         display_name="估值分析报告",
-        market_scope="A-share",
+        market_scope=report_contract("valuation")["market_scope"],
         requirements=VALUATION_REQUIREMENTS,
     ),
 }

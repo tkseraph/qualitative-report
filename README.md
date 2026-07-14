@@ -161,6 +161,7 @@ export TUSHARE_TOKEN='your_token_here'
 .venv/bin/python scripts/run_single_stock.py \
   --code 000538.SZ \
   --pdf "output/2026-03-31：云南白药：2025年年度报告.pdf" \
+  --as-of 2026-03-31 \
   --output-dir output/000538_runner_repro
 ```
 
@@ -170,11 +171,16 @@ runner 直接生成的中间件：
 - `pdf_sections.json`
 - `data_pack_report.md`（如构建成功）
 - `valuation_computed.md`
+- `data_snapshot/`（本次 `as_of` 时点下的版本化 Parquet 数据快照；估值直接复用，不再二次采集）
+
+`--as-of` 固定本次分析可使用的数据边界。A 股财务报表按公告日/修订公告日过滤，同一报告期只保留当时已经公开的最新版本；行情、利率和回购窗口也以该日期为上界。
 
 runner 同时生成三份后续 workflow prompt：
 - `step5_qualitative_prompt.md`：生成 `{code_market}_qualitative_report.md`
 - `step7_turtle_prompt.md`：生成 `{code_market}_turtle_report.md`
 - `step8_valuation_prompt.md`：生成 `{code_market}_valuation_report.md`
+
+正式报告的首屏、D6、图表、观察变量和机器字段以 `shared/report_contract.json` 为唯一机器契约源；提示词生成器和 `validate_reports.py` 读取同一份契约。
 
 推荐顺序：
 1. Step 5：基于 `shared/qualitative/*` 生成 qualitative 商业质量报告。
@@ -256,11 +262,23 @@ python scripts/validate_reports.py \
 ```
 
 验收器覆盖的核心结构：
-- qualitative：Business Quality Verdict、Quality Snapshot、D1-D6、深度总结、观察变量、结构化参数、数据来源、免责声明。
+- qualitative：Business Quality Verdict、固定 `| 项目 | 结论 |` 首屏摘要卡、Quality Snapshot、五个核心发现、D1-D6 / 维度一至维度六、本章小结、核心矛盾与反证条件、深度总结、观察变量、数据来源、免责声明、结构化参数（机器读取 / 附录）。结构化参数必须包含 `roe_5y_avg`、`moat_rating`、`moat_sustainability`、`management_rating`、`cyclicality`、`cycle_position`、`capital_intensity`、`entry_barrier`、`moat_existence`。
 - turtle：Strategy Verdict、Turtle Snapshot、Owner Earnings、穿透回报率、安全边际、价值陷阱、投资论点卡、基本面止损、事件监控、数据来源、免责声明。
 - valuation：Valuation Verdict、Valuation Snapshot、公司分类、方法权重、WACC、定性调整、DCF、PE Band、DDM、交叉验证、反向估值、估值区间、数据来源、免责声明。
 
-如果验收失败，优先修正对应报告 prompt/template，而不是放宽验收规则。
+如果验收失败，优先修正对应报告 prompt/template 或渲染/parser 兼容，而不是手改已经生成的报告。
+
+qualitative 报告通过后，建议继续跑微信公众号 / HTML 本地预览，确认公众号摘要、KPI cards 和网页章节都能正常生成：
+
+```bash
+PYTHONPATH=scripts .venv/bin/python scripts/wechat_report.py \
+  output/<code_company>/<code_market>_qualitative_report.md \
+  --qualitative-polish \
+  --preview-html \
+  --dry-run
+```
+
+预期输出应至少确认：`Sections: 6 dimensions`、`KPI cards: 8`、`Has executive summary: True`、`Has appendix: True`。若 validator PASS 但 HTML 章节数或 KPI cards 不达标，应修 `scripts/report_to_html.py` 或 `scripts/wechat_report.py`，不要手工修报告正文。
 
 ### 固定验收矩阵
 
@@ -282,6 +300,12 @@ python scripts/validate_reports.py \
 
 # 指定输出路径
 .venv/bin/python scripts/tushare_collector.py --code 600887.SH --output output/data_pack_market.md
+
+# 固定历史分析时点，并将采集结果持久化供估值复用
+.venv/bin/python scripts/tushare_collector.py --code 600887.SH \
+  --as-of 2025-03-31 \
+  --output output/600887/data_pack_market.md \
+  --snapshot-dir output/600887/data_snapshot
 
 # 附加额外字段
 .venv/bin/python scripts/tushare_collector.py --code 00700.HK --extra-fields balancesheet.defer_tax_assets
@@ -589,8 +613,11 @@ v2.0-beta 的定性分析采用 **PDF-first 单 Agent** 架构：年报 PDF 直�
 ## 测试
 
 ```bash
-# 运行全部测试（792 tests）
+# 运行默认离线测试（自动排除 integration）
 .venv/bin/python -m pytest tests/ -v
+
+# 显式运行联网/真实文件集成测试
+.venv/bin/python -m pytest tests/test_integration.py -v -m integration
 
 # 运行单个测试文件
 .venv/bin/python -m pytest tests/test_screener.py -v
@@ -613,7 +640,7 @@ v2.0-beta 的定性分析采用 **PDF-first 单 Agent** 架构：年报 PDF 直�
 - 选股器全流程（`test_screener.py`）
 - 增量刷新模式（`test_refresh_market.py`）
 
-所有测试使用 Mock 数据，不需要 Tushare Token 即可运行。
+默认测试使用 Mock/fixture 数据，不需要 Tushare Token；标记为 `integration` 的联网或真实文件测试必须显式使用 `-m integration` 运行。
 
 ## 技术细节
 

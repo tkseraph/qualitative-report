@@ -3,9 +3,16 @@
 Utility methods: market detection, display formatting, HK pivot, store helpers.
 """
 
+from __future__ import annotations
+
 import pandas as pd
 
-from format_utils import format_number
+if (__package__ or "").startswith("scripts."):
+    from ..financial_math import cash_outflow, safe_float
+    from ..format_utils import format_number
+else:  # direct script execution exposes tushare_modules as top-level
+    from financial_math import cash_outflow, safe_float
+    from format_utils import format_number
 
 
 class InfrastructureMixin:
@@ -56,6 +63,73 @@ class InfrastructureMixin:
         return int(counts.idxmax())
 
     @staticmethod
+    def _compact_date(value) -> str | None:
+        """Return a comparable YYYYMMDD string for common API date values."""
+        if value is None or pd.isna(value):
+            return None
+        text = str(value).strip().replace("-", "")
+        if text.endswith(".0"):
+            text = text[:-2]
+        return text[:8] if len(text) >= 8 and text[:8].isdigit() else None
+
+    def _as_of_timestamp(self) -> pd.Timestamp:
+        """Return the client's point-in-time boundary as a normalized timestamp."""
+        value = getattr(self, "as_of", pd.Timestamp.now().strftime("%Y%m%d"))
+        return pd.Timestamp(str(value)).normalize()
+
+    def _select_vintage(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Select the latest report revision that was knowable at ``as_of``.
+
+        Tushare can return multiple revisions for the same reporting period.
+        When announcement metadata is available, rows announced after the
+        requested analysis date are excluded before deduplication.  Datasets
+        without announcement columns retain their legacy behaviour.
+        """
+        if df is None or df.empty:
+            return pd.DataFrame() if df is None else df.copy()
+
+        selected = df.copy()
+        if "end_date" in selected.columns:
+            selected["end_date"] = selected["end_date"].map(self._compact_date)
+            selected = selected[selected["end_date"].notna()]
+            selected = selected[selected["end_date"] <= getattr(self, "as_of", "99991231")]
+
+        announcement_columns = [
+            col for col in ("f_ann_date", "ann_date") if col in selected.columns
+        ]
+        if announcement_columns:
+            effective = pd.Series(index=selected.index, dtype="object")
+            for col in announcement_columns:
+                candidate = selected[col].map(self._compact_date)
+                effective = effective.fillna(candidate)
+            selected["_effective_date"] = effective
+            selected = selected[
+                selected["_effective_date"].notna()
+                & (selected["_effective_date"] <= getattr(self, "as_of", "99991231"))
+            ]
+
+        if selected.empty or "end_date" not in selected.columns:
+            return selected.drop(columns=["_effective_date"], errors="ignore")
+
+        sort_cols = ["end_date"]
+        ascending = [False]
+        if "_effective_date" in selected.columns:
+            sort_cols.append("_effective_date")
+            ascending.append(False)
+        if "update_flag" in selected.columns:
+            selected["_update_order"] = pd.to_numeric(
+                selected["update_flag"], errors="coerce"
+            ).fillna(0)
+            sort_cols.append("_update_order")
+            ascending.append(False)
+
+        selected = selected.sort_values(sort_cols, ascending=ascending)
+        selected = selected.drop_duplicates(subset=["end_date"], keep="first")
+        return selected.drop(
+            columns=["_effective_date", "_update_order"], errors="ignore"
+        )
+
+    @staticmethod
     def _us_api_code(ts_code: str) -> str:
         """Strip .US suffix for Tushare US API calls (Tushare uses plain tickers)."""
         return ts_code.rsplit(".", 1)[0]
@@ -99,7 +173,7 @@ class InfrastructureMixin:
         if df.empty:
             return df, []
 
-        df = df.drop_duplicates(subset=["end_date"])
+        df = self._select_vintage(df)
 
         fy_month_str = f"{self._fy_end_month:02d}"
 
@@ -147,13 +221,17 @@ class InfrastructureMixin:
     @staticmethod
     def _safe_float(val) -> float | None:
         """Convert a value to float, returning None for NaN/None."""
-        if val is None:
-            return None
-        try:
-            f = float(val)
-            return None if f != f else f  # NaN check
-        except (TypeError, ValueError):
-            return None
+        return safe_float(val)
+
+    @staticmethod
+    def _outflow_amount(val) -> float | None:
+        """Normalize a cash outflow to a positive amount.
+
+        Tushare generally reports capex as a positive payment while yfinance
+        commonly reports it as a negative cash-flow line.  Downstream formulas
+        must consume one canonical sign convention.
+        """
+        return cash_outflow(val)
 
     def _get_annual_df(self, store_key: str) -> pd.DataFrame:
         """Get stored DataFrame filtered to annual periods only."""
@@ -161,6 +239,7 @@ class InfrastructureMixin:
         if df is None or df.empty:
             return pd.DataFrame()
         fy_month_str = f"{self._fy_end_month:02d}"
+        df = self._select_vintage(df)
         annual = df[df["end_date"].str[4:6] == fy_month_str].copy()
         return annual.sort_values("end_date", ascending=False)
 

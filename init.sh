@@ -2,7 +2,7 @@
 # init.sh - Turtle Investment Framework environment setup
 # Run at the start of each Claude Code session
 
-set -e
+set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$PROJECT_ROOT"
@@ -56,7 +56,7 @@ echo "  Using: $PYTHON_BIN"
 
 # 2. Install dependencies (on first create or --force-install)
 echo "[2/5] Installing Python dependencies..."
-if [ "$VENV_JUST_CREATED" -eq 1 ] || [ "$1" = "--force-install" ]; then
+if [ "$VENV_JUST_CREATED" -eq 1 ] || [ "${1:-}" = "--force-install" ]; then
     $PYTHON_BIN -m pip install -q -r requirements.txt
     echo "  Dependencies installed."
 else
@@ -72,7 +72,7 @@ if [ -f "$PROJECT_ROOT/.env" ]; then
     set +a
     echo "  Loaded .env file"
 fi
-if [ -z "$TUSHARE_TOKEN" ]; then
+if [ -z "${TUSHARE_TOKEN:-}" ]; then
     echo "  WARNING: TUSHARE_TOKEN not set"
     echo "  Option 1: cp .env.sample .env && edit .env"
     echo "  Option 2: export TUSHARE_TOKEN='your_token_here'"

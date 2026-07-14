@@ -18,6 +18,7 @@ import functools
 import os
 import sys
 import time
+from pathlib import Path
 
 import pandas as pd
 import tushare as ts
@@ -26,24 +27,47 @@ try:
     import yfinance as yf
     _yf_available = True
 except ImportError:
+    class _MissingYFinance:
+        @staticmethod
+        def Ticker(*_args, **_kwargs):
+            raise RuntimeError("yfinance is not installed")
+
+    yf = _MissingYFinance()
     _yf_available = False
 
-from config import get_token, get_api_url, validate_stock_code
-from format_utils import format_number, format_table, format_header
+if __package__:
+    from .config import get_token, get_api_url, validate_stock_code
+    from .data_snapshot import load_snapshot, save_snapshot, snapshot_exists
+    from .format_utils import format_number, format_table, format_header
+else:
+    from config import get_token, get_api_url, validate_stock_code
+    from data_snapshot import load_snapshot, save_snapshot, snapshot_exists
+    from format_utils import format_number, format_table, format_header
 
 # Re-export all constants and mixin classes for backward compatibility.
 # Tests and external code import these from tushare_collector directly:
 #   from tushare_collector import TushareClient, WarningsCollector, rate_limit
 #   from tushare_collector import _VIP_MAP, HK_INCOME_MAP, US_INCOME_MAP
-from tushare_modules import (
-    _VIP_MAP,
-    HK_INCOME_MAP, HK_BALANCE_MAP, HK_CASHFLOW_MAP,
-    US_INCOME_MAP, US_BALANCE_MAP, US_CASHFLOW_MAP,
-    _YF_INCOME_MAP, _YF_BALANCE_MAP, _YF_CASHFLOW_MAP,
-    InfrastructureMixin, YFinanceMixin, FinancialsMixin,
-    OtherDataMixin, DerivedMetricsMixin, AssemblyMixin,
-    WarningsCollector,
-)
+if __package__:
+    from .tushare_modules import (
+        _VIP_MAP,
+        HK_INCOME_MAP, HK_BALANCE_MAP, HK_CASHFLOW_MAP,
+        US_INCOME_MAP, US_BALANCE_MAP, US_CASHFLOW_MAP,
+        _YF_INCOME_MAP, _YF_BALANCE_MAP, _YF_CASHFLOW_MAP,
+        InfrastructureMixin, YFinanceMixin, FinancialsMixin,
+        OtherDataMixin, DerivedMetricsMixin, AssemblyMixin,
+        WarningsCollector,
+    )
+else:
+    from tushare_modules import (
+        _VIP_MAP,
+        HK_INCOME_MAP, HK_BALANCE_MAP, HK_CASHFLOW_MAP,
+        US_INCOME_MAP, US_BALANCE_MAP, US_CASHFLOW_MAP,
+        _YF_INCOME_MAP, _YF_BALANCE_MAP, _YF_CASHFLOW_MAP,
+        InfrastructureMixin, YFinanceMixin, FinancialsMixin,
+        OtherDataMixin, DerivedMetricsMixin, AssemblyMixin,
+        WarningsCollector,
+    )
 
 
 def rate_limit(func):
@@ -70,7 +94,10 @@ class TushareClient(
 
     BASIC_CACHE_TTL = 7 * 86400  # 7 days in seconds
 
-    def __init__(self, token: str):
+    def __init__(self, token: str, as_of: str | None = None):
+        raw_as_of = str(as_of or pd.Timestamp.now().strftime("%Y%m%d")).strip()
+        parsed_as_of = pd.to_datetime(raw_as_of, errors="raise")
+        self.as_of = parsed_as_of.strftime("%Y%m%d")
         ts.set_token(token)
         self.pro = ts.pro_api(timeout=30)
         self.token = token
@@ -155,18 +182,15 @@ class TushareClient(
         First call fetches ALL US stocks (limit=6000) and caches to Parquet.
         Subsequent same-day calls read from cache and filter by ts_code.
         """
-        cache_file = os.path.join(self._cache_dir, "us_daily_all.parquet")
-        today = pd.Timestamp.now().strftime("%Y%m%d")
+        cache_file = os.path.join(self._cache_dir, f"us_daily_all_{self.as_of}.parquet")
 
-        # Check cache: file exists AND was created today
+        # The point-in-time boundary is part of the cache identity.  This makes
+        # repeated historical runs deterministic without relying on file mtime.
         if os.path.exists(cache_file):
-            mtime = os.path.getmtime(cache_file)
-            cache_date = pd.Timestamp.fromtimestamp(mtime).strftime("%Y%m%d")
-            if cache_date == today:
-                df = pd.read_parquet(cache_file)
-                if ts_code:
-                    df = df[df["ts_code"] == ts_code]
-                return df
+            df = pd.read_parquet(cache_file)
+            if ts_code:
+                df = df[df["ts_code"] == ts_code]
+            return df
 
         # Bulk fetch all US stocks
         df = self._safe_call("us_daily", limit=6000,
@@ -222,6 +246,21 @@ Examples:
         action="store_true",
         help="Only refresh market-sensitive sections (§1/§2/§11/§14) in existing data pack",
     )
+    parser.add_argument(
+        "--as-of",
+        default=None,
+        help="Point-in-time boundary (YYYY-MM-DD; default: today)",
+    )
+    parser.add_argument(
+        "--snapshot-dir",
+        default=None,
+        help="Snapshot directory (default: <output-dir>/data_snapshot)",
+    )
+    parser.add_argument(
+        "--no-snapshot",
+        action="store_true",
+        help="Do not persist the collected DataFrame snapshot",
+    )
     return parser.parse_args()
 
 
@@ -240,18 +279,24 @@ def main():
         print(f"  Stock code: {args.code} -> {ts_code}")
         print(f"  Token: {'provided via --token' if args.token else 'from TUSHARE_TOKEN env'}")
         print(f"  Output: {args.output}")
+        print(f"  As of: {args.as_of or 'today'}")
+        print(f"  Snapshot: {'disabled' if args.no_snapshot else args.snapshot_dir or 'next to output'}")
         print(f"  Extra fields: {args.extra_fields or 'none'}")
         return
 
     # Get token
     token = args.token or get_token()
-    client = TushareClient(token)
+    client = TushareClient(token, as_of=args.as_of)
+    output_path = Path(args.output)
+    snapshot_dir = Path(args.snapshot_dir) if args.snapshot_dir else output_path.parent / "data_snapshot"
 
     if args.refresh_market:
-        from pathlib import Path
-        output_path = Path(args.output)
         if not output_path.exists():
             print(f"⚠️ {output_path} does not exist, falling back to full collection")
+            print(f"Collecting data for {ts_code}...")
+            data_pack = client.assemble_data_pack(ts_code)
+        elif not snapshot_exists(snapshot_dir):
+            print(f"⚠️ {snapshot_dir} does not exist; full collection is required for a complete snapshot")
             print(f"Collecting data for {ts_code}...")
             data_pack = client.assemble_data_pack(ts_code)
         else:
@@ -262,6 +307,18 @@ def main():
                 print(f"Collecting data for {ts_code}...")
                 data_pack = client.assemble_data_pack(ts_code)
             else:
+                store, manifest = load_snapshot(snapshot_dir)
+                if manifest["ts_code"] != ts_code:
+                    raise SystemExit(
+                        f"Snapshot code mismatch: {manifest['ts_code']} != {ts_code}"
+                    )
+                if manifest["as_of"] > client.as_of:
+                    raise SystemExit(
+                        f"Snapshot as_of {manifest['as_of']} is later than requested {client.as_of}"
+                    )
+                client._store = store
+                client._currency = manifest.get("currency", client._currency)
+                client._fy_end_month = int(manifest.get("fy_end_month", 12))
                 print(f"Refreshing market data for {ts_code} (data pack is {age_days} day(s) old)...")
                 data_pack = client.refresh_market_sections(ts_code, existing)
     else:
@@ -294,6 +351,16 @@ def main():
     os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
     with open(args.output, "w", encoding="utf-8") as f:
         f.write(data_pack)
+    if not args.no_snapshot:
+        manifest_path = save_snapshot(
+            client._store,
+            snapshot_dir,
+            ts_code=ts_code,
+            as_of=client.as_of,
+            currency=client._currency,
+            fy_end_month=client._fy_end_month,
+        )
+        print(f"Snapshot written to {manifest_path}")
     print(f"Output written to {args.output}")
     print(f"File size: {os.path.getsize(args.output):,} bytes")
 

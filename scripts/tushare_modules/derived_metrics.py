@@ -3,9 +3,16 @@
 Section 17 derived metrics: financial trends, Factor 2/3/4 computations.
 """
 
+import statistics
+
 import pandas as pd
 
-from format_utils import format_number, format_table, format_header
+if (__package__ or "").startswith("scripts."):
+    from ..financial_math import depreciation_and_amortization, interest_bearing_debt
+    from ..format_utils import format_number, format_table, format_header
+else:  # direct script execution exposes tushare_modules as top-level
+    from financial_math import depreciation_and_amortization, interest_bearing_debt
+    from format_utils import format_number, format_table, format_header
 
 
 class DerivedMetricsMixin:
@@ -30,13 +37,18 @@ class DerivedMetricsMixin:
 
         # CAGR calculation
         def _cagr(series: list[tuple[str, float | None]]) -> str:
-            vals = [v for _, v in series if v is not None and v > 0]
-            if len(vals) < 2:
+            if len(series) < 2 or any(
+                value is None or value <= 0 for _, value in series
+            ):
                 return "—"
             # series is desc order: [latest, ..., oldest]
-            latest, oldest = vals[0], vals[-1]
-            n = len(vals) - 1
-            if oldest <= 0:
+            latest_year, latest = series[0]
+            oldest_year, oldest = series[-1]
+            try:
+                n = int(latest_year) - int(oldest_year)
+            except (TypeError, ValueError):
+                n = len(series) - 1
+            if n <= 0:
                 return "—"
             cagr = (latest / oldest) ** (1 / n) - 1
             return f"{cagr * 100:.2f}%"
@@ -44,25 +56,13 @@ class DerivedMetricsMixin:
         rev_cagr = _cagr(rev_series)
         np_cagr = _cagr(np_series)
 
-        # --- Interest-bearing debt per year ---
-        def _interest_bearing_debt(row) -> float | None:
-            components = ["st_borr", "lt_borr", "bond_payable", "non_cur_liab_due_1y"]
-            total = 0.0
-            any_valid = False
-            for c in components:
-                v = self._safe_float(row.get(c))
-                if v is not None:
-                    total += v
-                    any_valid = True
-            return total if any_valid else None
-
         debt_series = []  # (year, debt_raw)
         debt_ratio_series = []  # (year, ratio_pct)
         net_cash_series = []  # (year, net_cash_raw)
         if not bs_df.empty:
             for _, r in bs_df.iterrows():
                 year = str(r["end_date"])[:4]
-                debt = _interest_bearing_debt(r)
+                debt = interest_bearing_debt(r)
                 ta = self._safe_float(r.get("total_assets"))
                 cash = self._safe_float(r.get("money_cap"))
                 debt_series.append((year, debt))
@@ -204,16 +204,16 @@ class DerivedMetricsMixin:
                 da_components = [v for v in [depr, amort_i, amort_d] if v is not None]
                 da = sum(da_components) if da_components else None
 
-                capex = self._safe_float(r.get("c_pay_acq_const_fiolta"))
+                capex = self._outflow_amount(r.get("c_pay_acq_const_fiolta"))
                 ocf = self._safe_float(r.get("n_cashflow_act"))
 
                 da_row.append(format_number(da) if da is not None else "—")
                 capex_row.append(format_number(capex))
                 if da and da > 0 and capex is not None:
-                    ratio = abs(capex) / da
+                    ratio = capex / da
                     capex_da_row.append(f"{ratio:.2f}")
                     da_vals.append(da)
-                    capex_vals.append(abs(capex))
+                    capex_vals.append(capex)
                     capex_da_vals.append(ratio)
                 else:
                     capex_da_row.append("—")
@@ -369,17 +369,8 @@ class DerivedMetricsMixin:
         latest_consol = bs_df.iloc[0]
         latest_parent = bs_parent_df.iloc[0]
 
-        def _debt(row):
-            components = ["st_borr", "lt_borr", "bond_payable", "non_cur_liab_due_1y"]
-            total = 0.0
-            for c in components:
-                v = self._safe_float(row.get(c))
-                if v:
-                    total += v
-            return total
-
-        consol_debt = _debt(latest_consol)
-        parent_debt = _debt(latest_parent)
+        consol_debt = interest_bearing_debt(latest_consol) or 0
+        parent_debt = interest_bearing_debt(latest_parent) or 0
         consol_cash = self._safe_float(latest_consol.get("money_cap")) or 0
         parent_cash = self._safe_float(latest_parent.get("money_cap")) or 0
 
@@ -451,16 +442,7 @@ class DerivedMetricsMixin:
         latest_bs = bs_df.iloc[0]
         latest_cf = cf_df.iloc[0]
 
-        # Helper: interest-bearing debt components (yuan)
-        def _ibd_yuan(row):
-            total = 0.0
-            for c in ["st_borr", "lt_borr", "bond_payable", "non_cur_liab_due_1y"]:
-                v = self._safe_float(row.get(c))
-                if v:
-                    total += v
-            return total
-
-        ibd_yuan = _ibd_yuan(latest_bs)
+        ibd_yuan = interest_bearing_debt(latest_bs) or 0
         cash_yuan = self._safe_float(latest_bs.get("money_cap")) or 0
         trad_yuan = self._safe_float(latest_bs.get("trad_asset")) or 0
         goodwill_yuan = self._safe_float(latest_bs.get("goodwill")) or 0
@@ -471,14 +453,10 @@ class DerivedMetricsMixin:
         finance_exp_yuan = self._safe_float(latest_inc.get("finance_exp")) or 0
         np_parent_yuan = self._safe_float(latest_inc.get("n_income_attr_p")) or 0
 
-        da_yuan = 0.0
-        for c in ["depr_fa_coga_dpba", "amort_intang_assets", "lt_amort_deferred_exp"]:
-            v = self._safe_float(latest_cf.get(c))
-            if v:
-                da_yuan += v
+        da_yuan = depreciation_and_amortization(latest_cf) or 0
 
         ocf_yuan = self._safe_float(latest_cf.get("n_cashflow_act")) or 0
-        capex_yuan = self._safe_float(latest_cf.get("c_pay_acq_const_fiolta")) or 0
+        capex_yuan = self._outflow_amount(latest_cf.get("c_pay_acq_const_fiolta")) or 0
         fcf_yuan = ocf_yuan - capex_yuan
 
         # Convert to 百万元
@@ -499,7 +477,10 @@ class DerivedMetricsMixin:
         ebitda = oper_profit + fin_exp + da
         net_debt = ibd - cash  # positive = net debt, negative = net cash
 
-        # Prefer fina_indicator pre-computed values when available
+        # Prefer fina_indicator pre-computed values when available.  FCFF is
+        # deliberately kept separate from equity FCF because its matching
+        # denominator is enterprise value, not equity market capitalisation.
+        fcff = None
         fi_df = self._store.get("fina_indicators")
         if fi_df is not None and not fi_df.empty:
             fy_month_str = f"{self._fy_end_month:02d}"
@@ -515,7 +496,7 @@ class DerivedMetricsMixin:
                     net_debt = v / 1e6
                 v = self._safe_float(fi_row.get("fcff"))
                 if v is not None:
-                    fcf = v / 1e6
+                    fcff = v / 1e6
 
         ev = mkt_cap + net_debt
         net_cash = -net_debt
@@ -523,6 +504,7 @@ class DerivedMetricsMixin:
         ev_ebitda = f"{ev / ebitda:.2f}x" if ebitda > 0 else "—"
         cash_pe = f"{(mkt_cap - net_cash) / np_parent:.2f}x" if np_parent > 0 else "—"
         fcf_yield = f"{fcf / mkt_cap * 100:.2f}%" if mkt_cap > 0 else "—"
+        fcff_ev_yield = f"{fcff / ev * 100:.2f}%" if fcff is not None and ev > 0 else "—"
         pb = f"{mkt_cap / equity:.2f}x" if equity > 0 else "—"
         net_debt_ebitda = f"{net_debt / ebitda:.2f}x" if ebitda > 0 else "—"
         goodwill_ratio = f"{goodwill / ta * 100:.2f}%" if ta > 0 else "—"
@@ -551,6 +533,7 @@ class DerivedMetricsMixin:
             ["EV/EBITDA", ev_ebitda, "—"],
             ["扣除现金PE", cash_pe, "(市值-净现金)/归母净利润"],
             ["FCF收益率", fcf_yield, "FCF/市值"],
+            ["FCFF/EV收益率", fcff_ev_yield, "FCFF/企业价值（口径匹配）"],
             ["P/B", pb, "市值/归母权益"],
             ["净负债/EBITDA", net_debt_ebitda, "(有息负债-现金)/EBITDA，负值=净现金"],
             ["商誉/总资产", goodwill_ratio, "—"],
@@ -575,14 +558,18 @@ class DerivedMetricsMixin:
         bvps = equity_yuan / total_shares
         baselines.append(("② 每股净资产", bvps, "归母权益/总股本"))
 
-        # ③ 10-year low from weekly prices
+        # ③ 10-year low from weekly prices.  Raw closes are not comparable
+        # across splits/dividends, so this baseline is available only when the
+        # collector provides an adjusted close series.
         wp_df = self._store.get("weekly_prices")
-        if wp_df is not None and not wp_df.empty:
-            min_close = wp_df["close"].dropna().min()
+        if wp_df is not None and not wp_df.empty and "adj_close" in wp_df.columns:
+            min_close = wp_df["adj_close"].dropna().min()
             if min_close is not None and min_close == min_close:  # NaN check
-                baselines.append(("③ 10年最低价", float(min_close), "周线最低收盘价"))
+                baselines.append(("③ 10年复权最低价", float(min_close), "周线复权最低收盘价"))
 
-        # ④ Dividend yield implied price: 3yr avg DPS / max(Rf, 3%)
+        # ④/⑤ use a required equity return rather than the risk-free rate.
+        # A floor of 8% avoids mechanically inflated capitalisation values in
+        # low-rate periods.
         rf_df = self._store.get("risk_free_rate")
         rf_pct = None
         if rf_df is not None and not rf_df.empty:
@@ -597,17 +584,17 @@ class DerivedMetricsMixin:
                     recent_dps.append(v)
             if recent_dps:
                 avg_dps = sum(recent_dps) / len(recent_dps)
-                discount = max(rf_pct / 100, 0.03)
-                implied_price = avg_dps / discount
+                required_return = max((rf_pct + 3.0) / 100, 0.08)
+                implied_price = avg_dps / required_return
                 baselines.append(("④ 股息隐含价", implied_price,
-                                  f"3年均DPS÷max(Rf,3%)"))
+                                  "3年均DPS÷max(Rf+3%,8%)"))
 
-        # ⑤ Pessimistic FCF capitalization: min(5yr FCF) / Rf / total_shares
+        # ⑤ Pessimistic equity-FCF capitalisation
         if rf_pct is not None and rf_pct > 0:
             fcf_list = []
             for _, row in cf_df.iterrows():
                 ocf_v = self._safe_float(row.get("n_cashflow_act"))
-                cap_v = self._safe_float(row.get("c_pay_acq_const_fiolta"))
+                cap_v = self._outflow_amount(row.get("c_pay_acq_const_fiolta"))
                 if ocf_v is not None and cap_v is not None:
                     fcf_list.append(ocf_v - cap_v)
             if fcf_list and min(fcf_list) <= 0:
@@ -615,14 +602,17 @@ class DerivedMetricsMixin:
                 lines.append("")
             if fcf_list and min(fcf_list) > 0:
                 min_fcf = min(fcf_list)
-                cap_price = min_fcf / (rf_pct / 100) / total_shares
+                required_return = max((rf_pct + 3.0) / 100, 0.08)
+                cap_price = min_fcf / required_return / total_shares
                 baselines.append(("⑤ 悲观FCF资本化", cap_price,
-                                  "min(5年FCF)÷Rf÷总股本"))
+                                  "min(5年FCF)÷max(Rf+3%,8%)÷总股本"))
 
         # Build baseline table
         bl_rows = []
         valid_prices = []
         for name, val, logic in baselines:
+            if val is None or val <= 0:
+                continue
             bl_rows.append([name, f"{val:.2f}", logic])
             valid_prices.append(val)
 
@@ -632,9 +622,9 @@ class DerivedMetricsMixin:
 
         # ===== Part C: Composite baseline =====
         if valid_prices:
-            composite = sum(valid_prices) / len(valid_prices)
+            composite = statistics.median(valid_prices)
 
-            lines.append(f"**综合基准价（算术平均）= {composite:.2f} {self._price_unit()}**")
+            lines.append(f"**综合基准价（中位数）= {composite:.2f} {self._price_unit()}**")
 
             if len(valid_prices) < 3:
                 lines.append("*数据不足（有效方法<3），仅供参考*")
@@ -1026,7 +1016,11 @@ class DerivedMetricsMixin:
     def _compute_factor3_sensitivity_base(self) -> str | None:
         """Compute §17.5: Base surplus + sensitivity inputs.
 
-        Base surplus = true_cash_revenue - W - Capex (per year, no V/X adjustments).
+        The reconstructed ``true_cash_revenue - W - Capex`` bridge is retained
+        as a diagnostic, while reported equity FCF (OCF - normalised Capex) is
+        the authoritative base.  The former double-counted several operating
+        cash outflows because cost of sales already includes staff and other
+        accrual expenses.
         Also computes: AA_incl, AA_excl, revenue CV, λ, λ reliability.
         Requires _compute_factor3_step1() and _compute_factor3_step4() to have run first.
         """
@@ -1040,11 +1034,17 @@ class DerivedMetricsMixin:
         if cf_df.empty or income_df.empty:
             return None
 
-        # Capex by year
+        # Reported cash-flow bridge by year
         capex_by_year = {}
+        reported_fcf_by_year = {}
         for _, r in cf_df.iterrows():
             year = str(r["end_date"])[:4]
-            capex_by_year[year] = self._safe_float(r.get("c_pay_acq_const_fiolta")) or 0
+            capex = self._outflow_amount(r.get("c_pay_acq_const_fiolta"))
+            ocf = self._safe_float(r.get("n_cashflow_act"))
+            if capex is not None:
+                capex_by_year[year] = capex
+            if capex is not None and ocf is not None:
+                reported_fcf_by_year[year] = ocf - capex
 
         # Revenue by year (for CV and λ)
         rev_by_year = {}
@@ -1054,21 +1054,23 @@ class DerivedMetricsMixin:
 
         # Compute base surplus per year (only years with all data)
         common_years = sorted(
-            set(true_cash_rev.keys()) & set(w_total.keys()) & set(capex_by_year.keys()),
+            set(true_cash_rev.keys()) & set(w_total.keys()) & set(reported_fcf_by_year.keys()),
             reverse=True
         )
         if not common_years:
             return None
 
-        surplus_data = []  # (year, tcr, w, capex, base_surplus)
+        surplus_data = []  # (year, tcr, w, capex, reconstructed, reported_fcf, gap)
         for year in common_years:
             tcr = true_cash_rev[year]
             w = w_total[year]
             capex = capex_by_year.get(year, 0)
-            base = tcr - w - capex
-            surplus_data.append((year, tcr, w, capex, base))
+            reconstructed = tcr - w - capex
+            reported_fcf = reported_fcf_by_year[year]
+            gap = reconstructed - reported_fcf
+            surplus_data.append((year, tcr, w, capex, reconstructed, reported_fcf, gap))
 
-        surpluses = [s[4] for s in surplus_data]
+        surpluses = [s[5] for s in surplus_data]
 
         # AA_all: mean of all years (was aa_incl)
         aa_all = sum(surpluses) / len(surpluses)
@@ -1096,7 +1098,6 @@ class DerivedMetricsMixin:
         all_revenues = [rev_by_year[y] for y in sorted(rev_by_year.keys()) if rev_by_year[y] > 0]
         cv = None
         if len(all_revenues) >= 2:
-            import statistics
             rev_mean = statistics.mean(all_revenues)
             rev_stdev = statistics.pstdev(all_revenues)  # population stdev
             cv = rev_stdev / rev_mean if rev_mean > 0 else None
@@ -1108,15 +1109,14 @@ class DerivedMetricsMixin:
             y_cur = sorted_years_asc[i]
             y_prev = sorted_years_asc[i - 1]
             delta_s = rev_by_year.get(y_cur, 0) - rev_by_year.get(y_prev, 0)
-            surplus_cur = next((s[4] for s in surplus_data if s[0] == y_cur), None)
-            surplus_prev = next((s[4] for s in surplus_data if s[0] == y_prev), None)
+            surplus_cur = next((s[5] for s in surplus_data if s[0] == y_cur), None)
+            surplus_prev = next((s[5] for s in surplus_data if s[0] == y_prev), None)
             if surplus_cur is not None and surplus_prev is not None and delta_s != 0:
                 delta_surplus = surplus_cur - surplus_prev
                 lambda_vals.append(delta_surplus / delta_s)
 
         # Use latest 3 pairs
         lambda_vals = lambda_vals[-3:] if len(lambda_vals) > 3 else lambda_vals
-        import statistics
         lambda_median = statistics.median(lambda_vals) if lambda_vals else None
 
         # λ reliability checks
@@ -1152,18 +1152,22 @@ class DerivedMetricsMixin:
         lines.append("")
 
         # Per-year table
-        headers = ["年份", "真实现金收入", "- W 经营支出", "- E 资本开支", "= 基准结余"]
+        headers = ["年份", "真实现金收入", "- W 经营支出", "- E 资本开支", "重构结余", "报告FCF", "重构差额"]
         rows = []
-        for year, tcr, w, capex, base in surplus_data:
+        for year, tcr, w, capex, reconstructed, reported_fcf, gap in surplus_data:
             rows.append([
                 year,
                 format_number(tcr),
                 format_number(w),
                 format_number(capex),
-                format_number(base),
+                format_number(reconstructed),
+                format_number(reported_fcf),
+                format_number(gap),
             ])
-        table = format_table(headers, rows, alignments=["l"] + ["r"] * 4)
+        table = format_table(headers, rows, alignments=["l"] + ["r"] * 6)
         lines.append(table)
+        lines.append("")
+        lines.append("> AA 默认采用报告口径权益 FCF（经营现金流-资本开支）；重构结余仅用于发现口径或数据异常。")
         lines.append("")
 
         # Summary

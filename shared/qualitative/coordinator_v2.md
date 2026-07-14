@@ -95,7 +95,21 @@ python3 scripts/tushare_collector.py --code {ts_code} --output {output_dir}/data
 - 搜索时优先获取最近完整财年数据，WebSearch 关键词中加入"年报""全年"以避免返回半年报/季报结果
 - 在报告中标注数据来源为 WebSearch，可信度相应降低
 
-### 1C：PDF 附注提取（仅当有 PDF 时，可与 Step 2 并行）
+### 1C-peer：行业与竞品 WebSearch 补充（按需，Step 2 前置）
+
+当 `data_pack_market.md` 的 **§8 行业与竞争** 仍含 `待Agent WebSearch补充` 占位符，或缺少 **主要竞争对手 / 同业对比 / 竞品对标** 信息时，必须先执行 WebSearch 数据补充，再启动 qualitative 写作。
+
+执行方式：读取 `shared/qualitative/data_collection.md`，补 §8 行业与竞争及必要的 §10 管理层讨论背景；同时生成独立的 `peer_evidence.md`，格式必须使用 `Peer Evidence / 同业证据包`。WebSearch 关键词必须包含“年报”或“全年”，竞品对标必须使用全年口径（全年 vs 全年），每项外部数据记录来源 URL、Source type 和 Confidence。不得硬编码具体样板公司或单一行业同业；同业选择必须来自目标公司的行业、业务、区域、客户结构、上市可比公司或公开披露的竞争格局。
+
+范围必须收敛：peer set 控制在 2-4 个具名同业，指标控制在 4-6 项 WebSearch 能可靠覆盖的全年口径数据；不追求穷尽同业，不得扩展成全行业数据库。找不到统一口径就写 Evidence Gaps，不强行凑完整同业矩阵。
+
+`peer_evidence.md` 必须做到年报原文级优先：Metric Evidence 记录 `Original wording / 原文摘录`、`Page clue / 页码线索`、`Report section / 年报章节`；同一指标必须优先使用同一口径。无法取得年报原文级证据时，在 Evidence Gaps 写明“无法取得年报原文级证据”和后续复核动作；不得用媒体摘要替代 High 证据。
+
+`peer_evidence.md` 必须区分 High / Medium / Low 置信度：High 为年报、交易所公告、公司公告或审计财报；Medium 为行业协会、监管机构、公司官网或正式业绩发布；Low 为媒体报道、财经网站摘要或非官方数据库。低置信来源不得支撑核心评级，只能提示方向或缺口。若确实找不到可比公司或行业数据，在 `peer_evidence.md` 的 Evidence Gaps 和 `data_pack_market.md` 中显式标注“同业数据不可得 / 无可比上市公司 / 可比公司数据不可得”，不要跳过 D2。
+
+D3 轻量外部周期证据只在强周期公司触发：可补 2-3 个外部周期变量，例如需求 / 产量、价格趋势、主要成本变量，且必须是年度或全年口径；不新增庞大的周期数据库。找不到就写缺口，不用零散月度新闻拼接长期序列。
+
+### 1D：PDF 附注提取（仅当有 PDF 时，可与 Step 2 并行）
 
 > 此步骤为下游策略（龟龟、烟蒂等）提供结构化附注数据，不影响定性分析。
 > 定性分析 Agent 和附注提取 Agent 读取 PDF 的不同区域，可并行执行。
@@ -166,12 +180,15 @@ Agent(
 
   数据文件：
     - Tushare 数据：{output_dir}/data_pack_market.md
+    - 同业证据包：{output_dir}/peer_evidence.md（若存在，D2 优先读取；若缺失但 §8 同业信息不足，先按 data_collection.md 生成）
     - PDF 附注结构化数据：{output_dir}/data_pack_report.md（若存在，则作为优先读取的增强输入）
     - 年报 PDF：已在 context 中加载（如有）
 
   按照 qualitative_assessment_v2.md 的 6 维度框架进行完整分析。
   特别注意"收入质量分解"和"交叉验证"部分；若存在 data_pack_report.md，优先引用其中的 P13/P4/P6/SUB（P3 若有则一并使用）补强 D1/D4/D6 判断。若缺失，则继续按当前主路径完成分析。
+  若 data_pack_market.md 的 §8 行业与竞争缺少主要竞争对手、同业对比或竞品对标，或仍含 `待Agent WebSearch补充`，先执行 WebSearch 数据补充（按 data_collection.md）并使用全年口径生成 peer_evidence.md，再写 D2。D2 使用 peer_evidence.md 时必须遵守 Source type 和 Confidence：High 可支撑同业表和护城河判断，Medium 只作辅助背景，Low 只能提示方向或缺口，低置信来源不得支撑核心评级。peer set 控制在 2-4 个具名同业，指标控制在 4-6 项 WebSearch 能可靠覆盖的数据；不追求穷尽同业，不得扩展成全行业数据库，找不到统一口径就写 Evidence Gaps。强周期公司的 D3 轻量外部周期证据只补 2-3 个外部周期变量，例如需求 / 产量、价格趋势、主要成本变量，且必须是年度或全年口径；不新增庞大的周期数据库，找不到就写缺口。
   最终 Markdown 必须严格保留 qualitative_assessment_v2.md 的成品报告外壳：Business Quality Verdict / 商业质量总体评级、Quality Snapshot / 质量快照、Executive Summary / 执行摘要、未来观察变量、结构化参数、数据来源与免责声明。
+  证据表必须回答一个明确投资问题，并按“投资问题 → 读图结论 → 表格证据 → 投资含义”组织；每组数据必须先说明它在验证哪个判断，表后必须写清楚该组证据如何影响评级、风险或反证阈值；不得只列数据不解释含义，不得把解释性字段混入图表友好数据列；图表友好数据列只放干净数值，读法、解释、证据、影响、判断、含义必须移到表前表后文字或非图表表格，不得把金额和证据写在同一个单元格。
 
   将最终报告写入：{output_dir}/{code_market}_qualitative_report.md
   """,

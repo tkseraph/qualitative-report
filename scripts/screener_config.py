@@ -81,6 +81,8 @@ class ScreenerConfig:
     weight_penetration_r: float = 0.25
     weight_ev_ebitda: float = 0.15
     weight_floor_premium: float = 0.20
+    # Minimum weighted field coverage required for the formal ranking.
+    min_scoring_coverage: float = 0.80
 
     # --- Cache ---
     cache_dir: str = "output/.screener_cache"
@@ -126,6 +128,8 @@ class ScreenerConfig:
             errors.append("obs_channel_limit must be >= 0")
         if self.min_fcf_positive_years_obs < 0 or self.min_fcf_positive_years_obs > 5:
             errors.append("min_fcf_positive_years_obs must be 0-5")
+        if not 0 <= self.min_scoring_coverage <= 1:
+            errors.append("min_scoring_coverage must be between 0 and 1")
         return errors
 
     def to_dict(self) -> dict[str, Any]:

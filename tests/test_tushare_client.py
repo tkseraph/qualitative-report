@@ -27,7 +27,7 @@ def _make_client():
     """Create a TushareClient with mocked tushare module."""
     with patch("tushare_collector.ts") as mock_ts:
         mock_ts.pro_api.return_value = MagicMock()
-        client = TushareClient("test_token")
+        client = TushareClient("test_token", as_of="2026-03-11")
     # Isolate tests from production cache and from each other
     client._cache_dir = tempfile.mkdtemp(prefix="tushare_test_cache_")
     return client
@@ -129,7 +129,9 @@ class TestCachedUsDaily:
         result = client._cached_us_daily(ts_code="AAPL")
 
         client._safe_call.assert_called_once()
-        assert os.path.exists(os.path.join(str(tmp_path), "us_daily_all.parquet"))
+        assert os.path.exists(os.path.join(
+            str(tmp_path), f"us_daily_all_{client.as_of}.parquet"
+        ))
         assert len(result) == 1
         assert result.iloc[0]["ts_code"] == "AAPL"
 
@@ -180,8 +182,8 @@ class TestCachedUsDaily:
         result = client._cached_us_daily()
         assert len(result) == 2
 
-    def test_stale_cache_triggers_fresh_fetch(self, tmp_path):
-        """Cache from yesterday should trigger a new API call."""
+    def test_different_as_of_triggers_fresh_fetch(self, tmp_path):
+        """A different point-in-time boundary has a distinct cache identity."""
         client = _make_client()
         client._cache_dir = str(tmp_path)
         bulk_df = pd.DataFrame([
@@ -193,10 +195,7 @@ class TestCachedUsDaily:
         # First call populates cache
         client._cached_us_daily(ts_code="AAPL")
 
-        # Age the cache file to yesterday
-        cache_file = os.path.join(str(tmp_path), "us_daily_all.parquet")
-        yesterday = time.time() - 86400
-        os.utime(cache_file, (yesterday, yesterday))
+        client.as_of = "20260312"
 
         # Second call should hit API again
         client._cached_us_daily(ts_code="AAPL")
@@ -585,6 +584,10 @@ class TestGetAudit:
         assert "标准无保留意见" in result
         assert "安永华明" in result
         assert "1350.0" in result  # 13500000 / 10000 = 1350.0
+        stored = client._store.get("audit")
+        assert stored is not None
+        assert not stored.empty
+        assert stored.iloc[0]["audit_result"] == "标准无保留意见"
 
     def test_audit_empty(self):
         client = _make_client()
@@ -592,11 +595,55 @@ class TestGetAudit:
             client._safe_call = MagicMock(return_value=pd.DataFrame())
             result = client.get_audit("600887.SH")
         assert "审计数据缺失" in result
+        stored = client._store.get("audit")
+        assert stored is not None
+        assert stored.empty
 
 
 # --- Feature #28: assemble_data_pack ---
 
 class TestAssembleDataPack:
+    SECTION_METHODS = (
+        "get_basic_info",
+        "get_market_data",
+        "get_income",
+        "get_income_parent",
+        "get_balance_sheet",
+        "get_balance_sheet_parent",
+        "get_cashflow",
+        "get_dividends",
+        "get_holders",
+        "get_segments",
+        "get_weekly_prices",
+        "get_fina_indicators",
+        "get_repurchase",
+        "get_pledge_stat",
+    )
+
+    @staticmethod
+    def _stub_sections(client):
+        for index, method_name in enumerate(TestAssembleDataPack.SECTION_METHODS, start=1):
+            setattr(
+                client,
+                method_name,
+                MagicMock(return_value=f"## {index}. 测试板块\n\n有效数据\n"),
+            )
+        client.get_audit = MagicMock(return_value="### 审计意见\n\n有效数据\n")
+        client.get_risk_free_rate = MagicMock(return_value="## 14. 无风险利率\n\n2.5%\n")
+        client.compute_derived_metrics = MagicMock(return_value="## 17. 衍生指标\n\n有效数据\n")
+
+    @pytest.mark.parametrize(
+        ("section_md", "expected"),
+        [
+            ("## 1. 基本信息\n\n有效数据", True),
+            ("## 1. 基本信息\n\n数据缺失", False),
+            ("## 1. 基本信息\n\n数据获取失败: timeout", False),
+            ("", False),
+        ],
+    )
+    def test_section_succeeded_classifies_rendered_failures(self, section_md, expected):
+        assert TushareClient._section_succeeded(section_md) is expected
+
     def test_all_section_headers_present(self):
         client = _make_client()
         # Mock all API calls to return empty DataFrames
@@ -620,6 +667,46 @@ class TestAssembleDataPack:
         assert "10. 管理层讨论与分析" in result
         assert "13. 风险警示" in result
         assert "Agent WebSearch" in result
+
+    def test_assemble_reuses_header_builder(self):
+        client = _make_client()
+        self._stub_sections(client)
+        client._safe_call = MagicMock(side_effect=AssertionError("unexpected API call"))
+
+        with patch.object(client, "_build_header", wraps=client._build_header) as build_header:
+            result = client.assemble_data_pack("600887.SH")
+
+        build_header.assert_called_once_with("600887.SH")
+        assert result.startswith("# 数据包 — 600887.SH")
+        assert f"*数据时点: {client.as_of}*" in result
+
+    def test_completion_summary_excludes_rendered_missing_section(self):
+        client = _make_client()
+        self._stub_sections(client)
+        client.get_basic_info.return_value = "## 1. 基本信息\n\n数据缺失\n"
+        client._store.update({
+            "income": pd.DataFrame([
+                {"end_date": "20251231", "revenue": 120, "n_income_attr_p": 12},
+                {"end_date": "20241231", "revenue": 100, "n_income_attr_p": 10},
+            ]),
+            "balance_sheet": pd.DataFrame([
+                {"end_date": "20251231", "goodwill": 5, "total_assets": 100, "total_liab": 80},
+            ]),
+            "cashflow": pd.DataFrame([
+                {"end_date": "20251231", "n_cashflow_act": 20},
+            ]),
+            "audit": pd.DataFrame([
+                {"end_date": "20251231", "audit_result": "保留意见"},
+            ]),
+        })
+        client._safe_call = MagicMock(side_effect=AssertionError("warnings must reuse stored data"))
+
+        result = client.assemble_data_pack("600887.SH")
+
+        assert "*共 13/14 个数据板块成功获取*" in result
+        assert "LEVERAGE_RISK" in result
+        assert "AUDIT_RISK" in result
+        client._safe_call.assert_not_called()
 
 
 # --- Feature #30: WarningsCollector ---

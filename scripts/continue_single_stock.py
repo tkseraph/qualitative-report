@@ -12,7 +12,14 @@ from __future__ import annotations
 
 import argparse
 import re
+import shlex
 from pathlib import Path
+from string import Template
+
+try:
+    from report_contract import render_qualitative_prompt_contract
+except ModuleNotFoundError:  # package import: scripts.continue_single_stock
+    from scripts.report_contract import render_qualitative_prompt_contract
 
 
 def parse_args() -> argparse.Namespace:
@@ -41,11 +48,42 @@ def detect_code_prefix(output_dir: Path) -> str:
     raise SystemExit(f"Unable to determine stock code from: {data_pack_path}")
 
 
-def _validation_command(project_root: Path, target: Path, report_type: str | None = None) -> str:
-    command = f"python {project_root / 'scripts' / 'validate_reports.py'} {target}"
+_STEP5_PROMPT_TEMPLATE = (
+    Path(__file__).resolve().parent.parent
+    / "shared"
+    / "qualitative"
+    / "step5_prompt_template.md"
+)
+
+
+def _validation_argv(
+    project_root: Path,
+    target: Path,
+    report_type: str | None = None,
+) -> list[str]:
+    """Build a shell-independent report validation argument vector."""
+    argv = [
+        "python",
+        str(project_root / "scripts" / "validate_reports.py"),
+        str(target),
+    ]
     if report_type:
-        command += f" --type {report_type}"
-    return command
+        argv.extend(["--type", report_type])
+    return argv
+
+
+def _validation_command(
+    project_root: Path,
+    target: Path,
+    report_type: str | None = None,
+) -> str:
+    """Format validation argv for prompts and terminal display."""
+    return shlex.join(_validation_argv(project_root, target, report_type))
+
+
+def _render_step5_prompt_template(**values: str) -> str:
+    template = Template(_STEP5_PROMPT_TEMPLATE.read_text(encoding="utf-8"))
+    return template.substitute(values).rstrip("\n")
 
 
 def build_step5_prompt(project_root: Path, output_dir: Path, qualitative_report_path: Path) -> str:
@@ -54,30 +92,24 @@ def build_step5_prompt(project_root: Path, output_dir: Path, qualitative_report_
         f"- {output_dir / 'annual_report.pdf'}",
         f"- {output_dir / 'pdf_sections.json'}",
     ]
-    data_pack_report = output_dir / 'data_pack_report.md'
+    data_pack_report = output_dir / "data_pack_report.md"
     if data_pack_report.exists():
         inputs.append(f"- {data_pack_report}")
-    return (
-        f"请基于以下输入生成 {qualitative_report_path.name}：\n"
-        + "\n".join(inputs)
-        + "\n\n"
-        + f"并严格按以下 workflow/reference 文件执行：\n"
-        + f"- {project_root / 'shared' / 'qualitative' / 'coordinator_v2.md'}\n"
-        + f"- {project_root / 'shared' / 'qualitative' / 'qualitative_assessment_v2.md'}\n"
-        + f"- {project_root / 'shared' / 'qualitative' / 'references' / 'judgment_examples.md'}\n"
-        + f"- {project_root / 'shared' / 'qualitative' / 'references' / 'framework_guide.md'}\n"
-        + f"- {project_root / 'shared' / 'qualitative' / 'references' / 'output_schema.md'}\n"
-        + f"- {project_root / 'shared' / 'qualitative' / 'agents' / 'writing_style.md'}\n\n"
-        + "必须保留并强化成品报告外壳：Business Quality Verdict / 商业质量总体评级、Quality Snapshot / 质量快照、Executive Summary / 执行摘要、核心矛盾与反证条件、未来观察变量、数据来源与免责声明。\n"
-        + "首屏必须让读者快速看懂：商业质量评级、公司本质、护城河来源、最大风险、主要约束、周期位置（如适用）、反证条件。\n"
-        + "Business Quality Verdict 后必须提供窄版首屏摘要卡，字段包含：公司本质、商业质量、护城河来源、最大风险、周期位置、反证条件。\n"
-        + "D1-D6 每个维度在证据充分时必须以“本章小结”收尾，包含本章结论、最重要证据、观察风险 / 重评触发。\n"
-        + "未来观察变量必须包含：当前值 / 本地证据、预警阈值、触发后的重评动作。\n"
-        + "微信公众号可读性约束：段落不要过长；正文表格优先 3-5 列，宽表只保留关键列；每张表必须服务一个判断并配有结论句；避免审计式数据堆叠。\n"
-        + "结构化参数必须保留，但应标为“结构化参数（机器读取 / 附录）”，放在人工阅读结论、观察变量、数据来源和免责声明之后。\n"
-        + "深度总结必须像文章结尾一样组织为：公司本质、为什么优势真实、最大风险、重评触发。\n"
-        + f"输出文件：{qualitative_report_path}\n"
-        + f"生成后运行验收：{_validation_command(project_root, qualitative_report_path, 'qualitative')}"
+    peer_evidence = output_dir / "peer_evidence.md"
+    if peer_evidence.exists():
+        inputs.append(f"- {peer_evidence}")
+
+    return _render_step5_prompt_template(
+        report_name=qualitative_report_path.name,
+        inputs="\n".join(inputs),
+        project_root=str(project_root),
+        qualitative_contract=render_qualitative_prompt_contract(),
+        qualitative_report_path=str(qualitative_report_path),
+        validation_command=_validation_command(
+            project_root,
+            qualitative_report_path,
+            "qualitative",
+        ),
     )
 
 

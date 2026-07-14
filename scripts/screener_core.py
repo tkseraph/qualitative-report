@@ -16,15 +16,41 @@ from __future__ import annotations
 import argparse
 import hashlib
 import os
+import statistics
 import sys
 import time
 from datetime import datetime, timedelta
+from enum import Enum
 from typing import Any
 
 import pandas as pd
 
-from config import get_token
-from screener_config import ScreenerConfig
+if __package__:
+    from .config import get_token
+    from .financial_math import (
+        depreciation_and_amortization,
+        free_cash_flow,
+        interest_bearing_debt,
+        safe_float,
+    )
+    from .screener_config import ScreenerConfig
+else:
+    from config import get_token
+    from financial_math import (
+        depreciation_and_amortization,
+        free_cash_flow,
+        interest_bearing_debt,
+        safe_float,
+    )
+    from screener_config import ScreenerConfig
+
+
+class ScreeningStatus(str, Enum):
+    """Three-state result for risk gates."""
+
+    PASS = "PASS"
+    VETO = "VETO"
+    UNKNOWN = "UNKNOWN"
 
 # Lazy import to avoid circular dependency at module level
 _TushareClient = None
@@ -33,7 +59,10 @@ _TushareClient = None
 def _get_tushare_client_class():
     global _TushareClient
     if _TushareClient is None:
-        from tushare_collector import TushareClient
+        if __package__:
+            from .tushare_collector import TushareClient
+        else:
+            from tushare_collector import TushareClient
         _TushareClient = TushareClient
     return _TushareClient
 
@@ -437,37 +466,49 @@ class TushareScreener:
 
     # ---- Tier 2: Hard vetoes ----
 
-    def _check_hard_vetoes(self, ts_code: str) -> tuple[bool, str]:
+    def _check_hard_vetoes(self, ts_code: str) -> tuple[ScreeningStatus, str]:
         """Check pledge ratio and audit opinion.
 
-        Returns (passed, reason). If passed=False, reason explains why.
+        Missing or failed risk data returns UNKNOWN. UNKNOWN is deliberately
+        fail-closed: unavailable data is not evidence that the stock passed.
         """
         cfg = self.config
+        missing: list[str] = []
 
         # Check pledge ratio
         try:
             pledge_df = self._cached_call("pledge_stat", ts_code=ts_code)
-            if not pledge_df.empty:
+            if pledge_df.empty:
+                missing.append("pledge")
+            else:
                 pledge_df = pledge_df.sort_values("end_date", ascending=False)
                 ratio = pledge_df.iloc[0].get("pledge_ratio")
                 if ratio is not None and not (ratio != ratio):  # NaN check
                     if float(ratio) > cfg.max_pledge_pct:
-                        return False, f"pledge_ratio={ratio:.1f}% > {cfg.max_pledge_pct}%"
-        except Exception:
-            pass  # non-fatal: data may not be available
+                        return ScreeningStatus.VETO, f"pledge_ratio={ratio:.1f}% > {cfg.max_pledge_pct}%"
+                else:
+                    missing.append("pledge_ratio")
+        except Exception as exc:
+            return ScreeningStatus.UNKNOWN, f"pledge_data_error:{type(exc).__name__}"
 
         # Check audit opinion
         try:
             audit_df = self._cached_call("fina_audit", ts_code=ts_code)
-            if not audit_df.empty:
+            if audit_df.empty:
+                missing.append("audit")
+            else:
                 audit_df = audit_df.sort_values("end_date", ascending=False)
                 result = audit_df.iloc[0].get("audit_result", "")
                 if result and "标准无保留" not in str(result):
-                    return False, f"non_standard_audit: {result}"
-        except Exception:
-            pass
+                    return ScreeningStatus.VETO, f"non_standard_audit: {result}"
+                if not result:
+                    missing.append("audit_result")
+        except Exception as exc:
+            return ScreeningStatus.UNKNOWN, f"audit_data_error:{type(exc).__name__}"
 
-        return True, ""
+        if missing:
+            return ScreeningStatus.UNKNOWN, "missing_risk_data:" + ",".join(sorted(set(missing)))
+        return ScreeningStatus.PASS, ""
 
     # ---- Tier 2: Financial quality ----
 
@@ -505,6 +546,14 @@ class TushareScreener:
         metrics["gross_margin"] = float(gm) if gm is not None and gm == gm else None
         metrics["debt_to_assets"] = float(debt) if debt is not None and debt == debt else None
         metrics["profit_dedt"] = float(profit_dedt) if profit_dedt is not None and profit_dedt == profit_dedt else None
+
+        required = ("roe_waa", "gross_margin", "debt_to_assets")
+        missing = [name for name in required if metrics[name] is None]
+        if missing:
+            metrics["quality_status"] = ScreeningStatus.UNKNOWN.value
+            metrics["missing_quality_fields"] = ",".join(missing)
+            return False, metrics
+        metrics["quality_status"] = ScreeningStatus.PASS.value
 
         # Observation channel: FCF-based quality gates
         if channel == "observation":
@@ -556,15 +605,6 @@ class TushareScreener:
         if cf_df.empty:
             return False, metrics
 
-        def _sf(val):
-            if val is None:
-                return None
-            try:
-                f = float(val)
-                return None if f != f else f
-            except (TypeError, ValueError):
-                return None
-
         cf_sorted = cf_df.sort_values("end_date", ascending=False)
         annual_cf = cf_sorted[cf_sorted["end_date"].str.endswith("1231")]
 
@@ -572,8 +612,12 @@ class TushareScreener:
             return False, metrics
 
         latest_cf = annual_cf.iloc[0]
-        ocf = _sf(latest_cf.get("n_cashflow_act"))
-        capex = _sf(latest_cf.get("c_pay_acq_const_fiolta"))
+        ocf = safe_float(latest_cf.get("n_cashflow_act"))
+        capex = safe_float(latest_cf.get("c_pay_acq_const_fiolta"))
+        if capex is None:
+            metrics["quality_status"] = ScreeningStatus.UNKNOWN.value
+            metrics["missing_quality_fields"] = "capex"
+            return False, metrics
 
         # Gate 4: OCF positive
         if cfg.obs_require_ocf_positive:
@@ -582,7 +626,7 @@ class TushareScreener:
 
         # Compute FCF (raw yuan)
         ocf_val = ocf if ocf is not None else 0
-        capex_val = abs(capex) if capex is not None else 0
+        capex_val = abs(capex)
         fcf = ocf_val - capex_val
 
         # Gate 5: FCF margin = FCF / Revenue * 100 (both in raw yuan)
@@ -591,7 +635,7 @@ class TushareScreener:
             inc_sorted = income_df.sort_values("end_date", ascending=False)
             annual_inc = inc_sorted[inc_sorted["end_date"].str.endswith("1231")]
             if not annual_inc.empty:
-                revenue = _sf(annual_inc.iloc[0].get("revenue"))
+                revenue = safe_float(annual_inc.iloc[0].get("revenue"))
 
         if revenue is not None and revenue > 0:
             fcf_margin = fcf / revenue * 100
@@ -604,8 +648,8 @@ class TushareScreener:
         # Gate 6: FCF consistency (positive years out of 5)
         fcf_list = []
         for _, r in annual_cf.head(5).iterrows():
-            o = _sf(r.get("n_cashflow_act"))
-            c = _sf(r.get("c_pay_acq_const_fiolta"))
+            o = safe_float(r.get("n_cashflow_act"))
+            c = safe_float(r.get("c_pay_acq_const_fiolta"))
             if o is not None and c is not None:
                 fcf_list.append(o - abs(c))
 
@@ -732,7 +776,7 @@ class TushareScreener:
                     ocf_raw = cf_row.get("n_cashflow_act")
                     ocf = float(ocf_raw) if ocf_raw is not None and pd.notna(ocf_raw) else None
                     capex_raw = cf_row.get("c_pay_acq_const_fiolta")
-                    capex = abs(float(capex_raw)) if capex_raw is not None and pd.notna(capex_raw) else 0
+                    capex = abs(float(capex_raw)) if capex_raw is not None and pd.notna(capex_raw) else None
 
                     v1_raw = inc_row.get("asset_disp_income")
                     v1 = float(v1_raw) if v1_raw is not None and pd.notna(v1_raw) else 0
@@ -742,7 +786,7 @@ class TushareScreener:
                     oi = float(oi_raw) if oi_raw is not None and pd.notna(oi_raw) else 0
                     v_deduct = noi + oi
 
-                    if ocf is not None:
+                    if ocf is not None and capex is not None:
                         AA = (ocf + v1 - v_deduct - capex) / 1e6  # 百万元
 
         result["AA"] = AA
@@ -795,15 +839,6 @@ class TushareScreener:
         except Exception:
             return result
 
-        def _sf(val):
-            if val is None:
-                return None
-            try:
-                f = float(val)
-                return None if f != f else f
-            except (TypeError, ValueError):
-                return None
-
         # Try pre-computed values from fina_indicator (already cached)
         fi_ebitda = fi_netdebt = fi_fcff = None
         try:
@@ -813,23 +848,25 @@ class TushareScreener:
                 annual_fi = fi_sorted[fi_sorted["end_date"].str.endswith("1231")]
                 if not annual_fi.empty:
                     fi_row = annual_fi.iloc[0]
-                    fi_ebitda = _sf(fi_row.get("ebitda"))
-                    fi_netdebt = _sf(fi_row.get("netdebt"))
-                    fi_fcff = _sf(fi_row.get("fcff"))
+                    fi_ebitda = safe_float(fi_row.get("ebitda"))
+                    fi_netdebt = safe_float(fi_row.get("netdebt"))
+                    fi_fcff = safe_float(fi_row.get("fcff"))
         except Exception:
             pass
 
         # Process income
+        latest_income_row = None
         if not income_df.empty:
             income_df = income_df.sort_values("end_date", ascending=False)
             annual_inc = income_df[income_df["end_date"].str.endswith("1231")]
             if not annual_inc.empty:
                 latest = annual_inc.iloc[0]
-                oper_profit = _sf(latest.get("operate_profit"))
-                fin_exp = _sf(latest.get("finance_exp"))
-                np_parent = _sf(latest.get("n_income_attr_p"))
+                latest_income_row = latest
+                oper_profit = safe_float(latest.get("operate_profit"))
+                fin_exp = safe_float(latest.get("finance_exp"))
+                np_parent = safe_float(latest.get("n_income_attr_p"))
 
-                rev_raw = _sf(latest.get("revenue"))
+                rev_raw = safe_float(latest.get("revenue"))
 
                 if oper_profit is not None:
                     result["oper_profit"] = oper_profit / 1e6
@@ -844,17 +881,13 @@ class TushareScreener:
             annual_bs = bs_df[bs_df["end_date"].str.endswith("1231")]
             if not annual_bs.empty:
                 latest = annual_bs.iloc[0]
-                cash = (_sf(latest.get("money_cap")) or 0) / 1e6
-                trad = (_sf(latest.get("trad_asset")) or 0) / 1e6
-                goodwill = (_sf(latest.get("goodwill")) or 0) / 1e6
-                ta = (_sf(latest.get("total_assets")) or 0) / 1e6
-                equity = (_sf(latest.get("total_hldr_eqy_exc_min_int")) or 0) / 1e6
+                cash = (safe_float(latest.get("money_cap")) or 0) / 1e6
+                trad = (safe_float(latest.get("trad_asset")) or 0) / 1e6
+                goodwill = (safe_float(latest.get("goodwill")) or 0) / 1e6
+                ta = (safe_float(latest.get("total_assets")) or 0) / 1e6
+                equity = (safe_float(latest.get("total_hldr_eqy_exc_min_int")) or 0) / 1e6
 
-                ibd = 0.0
-                for c in ["st_borr", "lt_borr", "bond_payable", "non_cur_liab_due_1y"]:
-                    v = _sf(latest.get(c))
-                    if v:
-                        ibd += v / 1e6
+                ibd = (interest_bearing_debt(latest) or 0) / 1e6
 
                 result["cash"] = cash
                 result["ibd"] = ibd
@@ -875,13 +908,9 @@ class TushareScreener:
 
             if not annual_cf.empty:
                 latest = annual_cf.iloc[0]
-                ocf = (_sf(latest.get("n_cashflow_act")) or 0) / 1e6
-                capex = (_sf(latest.get("c_pay_acq_const_fiolta")) or 0) / 1e6
-                da = 0.0
-                for c in ["depr_fa_coga_dpba", "amort_intang_assets", "lt_amort_deferred_exp"]:
-                    v = _sf(latest.get(c))
-                    if v:
-                        da += v / 1e6
+                ocf = (safe_float(latest.get("n_cashflow_act")) or 0) / 1e6
+                capex = abs(safe_float(latest.get("c_pay_acq_const_fiolta")) or 0) / 1e6
+                da = (depreciation_and_amortization(latest) or 0) / 1e6
 
                 result["da"] = da
                 result["fcf"] = ocf - capex
@@ -892,10 +921,10 @@ class TushareScreener:
 
             # FCF consistency (positive years / total years, up to 5)
             for _, row in annual_cf.head(5).iterrows():
-                o = _sf(row.get("n_cashflow_act"))
-                c = _sf(row.get("c_pay_acq_const_fiolta"))
+                o = safe_float(row.get("n_cashflow_act"))
+                c = safe_float(row.get("c_pay_acq_const_fiolta"))
                 if o is not None and c is not None:
-                    fcf_list.append(o - c)
+                    fcf_list.append(o - abs(c))
 
         if fcf_list:
             result["fcf_positive_years"] = sum(1 for f in fcf_list if f > 0)
@@ -910,7 +939,11 @@ class TushareScreener:
 
         # Compute composite metrics
         oper_profit = result.get("oper_profit")
-        fin_exp = _sf(income_df.iloc[0].get("finance_exp")) / 1e6 if not income_df.empty and income_df.iloc[0].get("finance_exp") is not None else 0
+        fin_exp = (
+            (safe_float(latest_income_row.get("finance_exp")) or 0) / 1e6
+            if latest_income_row is not None
+            else 0
+        )
         da = result.get("da", 0)
         cash = result.get("cash", 0)
         ibd = result.get("ibd", 0)
@@ -938,11 +971,12 @@ class TushareScreener:
                 result["ev_ebitda"] = ev / ebitda
                 result["net_debt_ebitda"] = net_debt_m / ebitda
 
-        # FCF: prefer fina_indicator, fallback to manual (already set above)
+        # Keep FCFF/EV separate from the equity FCF yield.  Data availability
+        # must not silently change the definition of the ranking metric.
         if fi_fcff is not None:
-            result["fcf"] = fi_fcff / 1e6
-            if mkt_cap > 0:
-                result["fcf_yield"] = (fi_fcff / 1e6) / mkt_cap * 100
+            result["fcff"] = fi_fcff / 1e6
+            if result.get("ev") and result["ev"] > 0:
+                result["fcff_ev_yield"] = result["fcff"] / result["ev"] * 100
 
         net_cash = -net_debt_m
         if np_parent is not None and np_parent > 0:
@@ -970,15 +1004,6 @@ class TushareScreener:
         except Exception:
             return result
 
-        def _sf(val):
-            if val is None:
-                return None
-            try:
-                f = float(val)
-                return None if f != f else f
-            except (TypeError, ValueError):
-                return None
-
         baselines = []
 
         # ① Net liquid assets / share
@@ -987,26 +1012,23 @@ class TushareScreener:
             annual_bs = bs_df[bs_df["end_date"].str.endswith("1231")]
             if not annual_bs.empty and total_shares > 0:
                 latest = annual_bs.iloc[0]
-                cash = _sf(latest.get("money_cap")) or 0
-                trad = _sf(latest.get("trad_asset")) or 0
-                ibd = 0.0
-                for c in ["st_borr", "lt_borr", "bond_payable", "non_cur_liab_due_1y"]:
-                    v = _sf(latest.get(c))
-                    if v:
-                        ibd += v
+                cash = safe_float(latest.get("money_cap")) or 0
+                trad = safe_float(latest.get("trad_asset")) or 0
+                ibd = interest_bearing_debt(latest) or 0
                 nla = (cash + trad - ibd) / total_shares
                 baselines.append(("net_liquid_assets", nla))
 
                 # ② BVPS
-                equity = _sf(latest.get("total_hldr_eqy_exc_min_int")) or 0
+                equity = safe_float(latest.get("total_hldr_eqy_exc_min_int")) or 0
                 bvps = equity / total_shares
                 baselines.append(("bvps", bvps))
 
-        # ③ 10-year low
-        if not weekly_df.empty:
-            min_close = weekly_df["close"].dropna().min()
+        # ③ Adjusted 10-year low.  Raw close is not comparable through splits
+        # and bonus issues, so omit this method unless an adjusted series exists.
+        if not weekly_df.empty and "adj_close" in weekly_df.columns:
+            min_close = weekly_df["adj_close"].dropna().min()
             if min_close is not None and min_close == min_close:
-                baselines.append(("10yr_low", float(min_close)))
+                baselines.append(("10yr_adjusted_low", float(min_close)))
 
         # ④ Dividend implied price
         rf = self._rf_cache
@@ -1014,12 +1036,12 @@ class TushareScreener:
             div_df = div_df.sort_values("end_date", ascending=False)
             recent_dps = []
             for _, row in div_df.head(3).iterrows():
-                v = _sf(row.get("cash_div_tax"))
+                v = safe_float(row.get("cash_div_tax"))
                 if v is not None:
                     recent_dps.append(v)
             if recent_dps:
                 avg_dps = sum(recent_dps) / len(recent_dps)
-                discount = max(rf / 100, 0.03)
+                discount = max((rf + 3.0) / 100, 0.08)
                 implied = avg_dps / discount
                 baselines.append(("dividend_implied", implied))
 
@@ -1029,21 +1051,25 @@ class TushareScreener:
             annual_cf = cf_df[cf_df["end_date"].str.endswith("1231")]
             fcf_list = []
             for _, row in annual_cf.head(5).iterrows():
-                o = _sf(row.get("n_cashflow_act"))
-                c = _sf(row.get("c_pay_acq_const_fiolta"))
-                if o is not None and c is not None:
-                    fcf_list.append(o - c)
+                fcf = free_cash_flow(
+                    row.get("n_cashflow_act"),
+                    row.get("c_pay_acq_const_fiolta"),
+                )
+                if fcf is not None:
+                    fcf_list.append(fcf)
             if fcf_list and min(fcf_list) > 0:
                 min_fcf = min(fcf_list)
-                cap_price = min_fcf / (rf / 100) / total_shares
+                required_return = max((rf + 3.0) / 100, 0.08)
+                cap_price = min_fcf / required_return / total_shares
                 baselines.append(("pessimistic_fcf", cap_price))
 
         result["baselines"] = baselines
 
-        # Composite = arithmetic mean of valid methods
+        # Composite = median of positive, independently derived methods
+        baselines = [(name, value) for name, value in baselines if value > 0]
         valid_prices = [v for _, v in baselines]
         if valid_prices:
-            composite = sum(valid_prices) / len(valid_prices)
+            composite = statistics.median(valid_prices)
             result["composite_baseline"] = composite
             result["premium"] = (close / composite - 1) * 100 if composite > 0 else None
         else:
@@ -1077,8 +1103,9 @@ class TushareScreener:
         }
 
         # Step 1: Hard vetoes (early termination)
-        passed, reason = self._check_hard_vetoes(ts_code)
-        if not passed:
+        risk_status, reason = self._check_hard_vetoes(ts_code)
+        if risk_status is not ScreeningStatus.PASS:
+            result["screening_status"] = risk_status.value
             result["veto"] = reason
             self._clear_stock_cache(ts_code)
             return None
@@ -1127,20 +1154,40 @@ class TushareScreener:
         cfg = self.config
         df = df.copy()
 
+        metric_weights = {
+            "roe_waa": cfg.weight_roe,
+            "fcf_yield": cfg.weight_fcf_yield,
+            "R": cfg.weight_penetration_r,
+            "ev_ebitda": cfg.weight_ev_ebitda,
+            "floor_premium": cfg.weight_floor_premium,
+        }
+
         # Percentile rank for each dimension
         # Higher is better: ROE, FCF yield, penetration R
         for col in ["roe_waa", "fcf_yield", "R"]:
             if col in df.columns:
-                df[f"{col}_pctile"] = df[col].rank(pct=True, na_option="bottom")
+                df[f"{col}_pctile"] = df[col].rank(
+                    pct=True, na_option="keep"
+                ).fillna(0.0)
             else:
                 df[f"{col}_pctile"] = 0.0
 
         # Lower is better: EV/EBITDA, floor premium
         for col in ["ev_ebitda", "floor_premium"]:
             if col in df.columns:
-                df[f"{col}_pctile"] = 1.0 - df[col].rank(pct=True, na_option="top")
+                ranked = df[col].rank(pct=True, na_option="keep")
+                df[f"{col}_pctile"] = (1.0 - ranked).fillna(0.0)
             else:
                 df[f"{col}_pctile"] = 0.0
+
+        coverage = 0.0
+        for col, weight in metric_weights.items():
+            if col in df.columns:
+                coverage = coverage + df[col].notna().astype(float) * weight
+        df["ranking_coverage"] = coverage
+        df["ranking_eligible"] = (
+            df["ranking_coverage"] >= cfg.min_scoring_coverage
+        )
 
         # Composite score
         df["composite_score"] = (
@@ -1216,6 +1263,7 @@ class TushareScreener:
 
         # Compute rankings
         result_df = self._compute_rankings(result_df)
+        result_df = result_df[result_df["ranking_eligible"]].copy()
 
         print(f"\n=== Results: {len(result_df)} stocks passed ===")
         return result_df

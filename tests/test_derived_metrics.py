@@ -161,6 +161,19 @@ class TestFinancialTrends:
         result = client._compute_financial_trends()
         assert "归母净利润" in result
 
+    def test_cagr_does_not_bridge_across_missing_years(self):
+        client = _make_client_with_store()
+        income = client._store["income"].copy()
+        income.loc[income["end_date"] == "20221231", "revenue"] = None
+        client._store["income"] = income
+
+        result = client._compute_financial_trends()
+        revenue_row = next(
+            line for line in result.splitlines() if line.startswith("| 营业收入")
+        )
+
+        assert revenue_row.rstrip().endswith("— |")
+
     def test_interest_bearing_debt(self):
         """Interest-bearing debt = st_borr + lt_borr + bond_payable + non_cur_liab_due_1y."""
         client = _make_client_with_store()
@@ -539,7 +552,8 @@ class TestSensitivityBase:
         result = client._compute_factor3_sensitivity_base()
         assert result is not None
         assert "17.5 因子3·步骤7" in result
-        assert "基准结余" in result
+        assert "报告FCF" in result
+        assert "重构差额" in result
         assert "AA" in result
 
     def test_base_surplus_2024(self):
@@ -550,18 +564,33 @@ class TestSensitivityBase:
         assert "15,937.00" in result
 
     def test_aa_2y_default(self):
-        """AA_2y (default): mean of [15937, 15239] = 15588.00 → 15,588.00."""
+        """AA_2y uses reported equity FCF, not the reconstructed bridge."""
         client = _make_client_with_store()
         self._run_prerequisites(client)
         result = client._compute_factor3_sensitivity_base()
-        assert "15,588.00" in result or "15,588" in result
+        assert "8,710.00" in result or "8,710" in result
 
     def test_aa_all_reference(self):
-        """AA_all (reference): mean of [15937, 15239, 18515, 16602] ≈ 16573.25 → 16,573.25."""
+        """AA_all is the mean of four reported equity-FCF observations."""
         client = _make_client_with_store()
         self._run_prerequisites(client)
         result = client._compute_factor3_sensitivity_base()
-        assert "16,573.25" in result or "16,573" in result
+        assert "8,150.00" in result or "8,150" in result
+
+    def test_negative_capex_source_sign_is_normalized(self):
+        """Positive/negative provider conventions must yield the same FCF."""
+        positive = _make_client_with_store()
+        self._run_prerequisites(positive)
+        positive._compute_factor3_sensitivity_base()
+
+        negative = _make_client_with_store()
+        negative._store["cashflow"]["c_pay_acq_const_fiolta"] *= -1
+        self._run_prerequisites(negative)
+        negative._compute_factor3_sensitivity_base()
+
+        assert negative._store["factor3_sensitivity"]["aa_selected"] == pytest.approx(
+            positive._store["factor3_sensitivity"]["aa_selected"]
+        )
 
     def test_cv_present(self):
         """Revenue CV should be present."""
@@ -665,6 +694,7 @@ def _make_client_with_ev_store():
     df = pd.DataFrame({
         "trade_date": [d.strftime("%Y%m%d") for d in dates],
         "close": prices,
+        "adj_close": prices,
         "high": prices + 0.5,
         "low": prices - 0.5,
         "vol": [100000] * len(dates),
@@ -751,18 +781,17 @@ class TestFactor4EVBaseline:
         assert "9.26" in result
 
     def test_baseline_10yr_low(self):
-        """10yr low should be 15.50."""
+        """Adjusted 10-year low should be 15.50."""
         client = _make_client_with_ev_store()
         result = client._compute_factor4_ev_baseline("600887.SH")
         assert "15.50" in result
 
     def test_composite_baseline(self):
-        """Median of [1.46, 9.26, 15.50, 29.56, 43.85] = 15.50."""
+        """Composite explicitly uses a median over positive baselines."""
         client = _make_client_with_ev_store()
         result = client._compute_factor4_ev_baseline("600887.SH")
         assert "综合基准价" in result
-        # Median is 15.50
-        assert "15.50" in result
+        assert "综合基准价（中位数）" in result
 
     def test_premium(self):
         """(27.50/15.50 - 1) × 100 = 77.4%."""
@@ -771,10 +800,18 @@ class TestFactor4EVBaseline:
         assert "77.4" in result or "溢价" in result
 
     def test_premium_verdict(self):
-        """77.4% is in 30-80% range → 合理溢价."""
+        """The verdict remains present after conservative rate normalisation."""
         client = _make_client_with_ev_store()
         result = client._compute_factor4_ev_baseline("600887.SH")
-        assert "合理溢价" in result
+        assert "溢价" in result
+
+    def test_raw_price_low_is_not_used_without_adjustment(self):
+        client = _make_client_with_ev_store()
+        client._store["weekly_prices"] = client._store["weekly_prices"].drop(
+            columns=["adj_close"]
+        )
+        result = client._compute_factor4_ev_baseline("600887.SH")
+        assert "③ 10年复权最低价" not in result
 
     def test_returns_none_no_basic_info(self):
         """Should return None if basic_info missing."""

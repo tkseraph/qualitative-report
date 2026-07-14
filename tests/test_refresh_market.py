@@ -430,8 +430,15 @@ class TestRefreshMarketCLI:
         with patch("tushare_collector.ts") as mock_ts, \
              patch("tushare_collector.get_token", return_value="tok"), \
              patch("tushare_collector.time.sleep"), \
+             patch("tushare_collector.snapshot_exists", return_value=True), \
+             patch("tushare_collector.load_snapshot", return_value=({}, {
+                 "ts_code": "600887.SH", "as_of": "20260311",
+                 "currency": "CNY", "fy_end_month": 12,
+             })), \
+             patch("tushare_collector.save_snapshot"), \
              patch("sys.argv", ["prog", "--code", "600887.SH",
-                                "--refresh-market", "--output", str(output)]):
+                                "--refresh-market", "--as-of", "2026-03-11",
+                                "--output", str(output)]):
             mock_ts.pro_api.return_value = MagicMock()
             from tushare_collector import TushareClient, main
 
@@ -471,8 +478,15 @@ class TestRefreshMarketCLI:
         with patch("tushare_collector.ts") as mock_ts, \
              patch("tushare_collector.get_token", return_value="tok"), \
              patch("tushare_collector.time.sleep"), \
+             patch("tushare_collector.snapshot_exists", return_value=True), \
+             patch("tushare_collector.load_snapshot", return_value=({}, {
+                 "ts_code": "600887.SH", "as_of": "20260311",
+                 "currency": "CNY", "fy_end_month": 12,
+             })), \
+             patch("tushare_collector.save_snapshot"), \
              patch("sys.argv", ["prog", "--code", "600887.SH",
-                                "--refresh-market", "--output", str(output)]):
+                                "--refresh-market", "--as-of", "2026-03-11",
+                                "--output", str(output)]):
             mock_ts.pro_api.return_value = MagicMock()
             from tushare_collector import TushareClient, main
 

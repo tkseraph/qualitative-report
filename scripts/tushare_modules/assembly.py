@@ -7,7 +7,10 @@ import re
 
 import pandas as pd
 
-from format_utils import format_number, format_table, format_header
+if (__package__ or "").startswith("scripts."):
+    from ..format_utils import format_number, format_table, format_header
+else:  # direct script execution exposes tushare_modules as top-level
+    from format_utils import format_number, format_table, format_header
 
 
 class AssemblyMixin:
@@ -106,6 +109,7 @@ class AssemblyMixin:
             format_header(1, f"数据包 — {ts_code}"),
             "",
             f"*生成时间: {timestamp}*",
+            f"*数据时点: {self.as_of}*",
             f"*数据来源: Tushare Pro*",
             f"*金额单位: {unit_label} (除特殊标注)*",
         ]
@@ -115,6 +119,19 @@ class AssemblyMixin:
             lines.append("*报表币种: USD*")
         lines.extend(["", "---", ""])
         return "\n".join(lines)
+
+    @staticmethod
+    def _section_succeeded(section_md: str) -> bool:
+        """Return whether a rendered data section represents a successful fetch.
+
+        Several ``get_*`` methods intentionally convert API/permission failures
+        into Markdown instead of raising.  Those sections still belong in the
+        report, but must not inflate the completion summary.
+        """
+        if not section_md or not section_md.strip():
+            return False
+        failure_markers = ("数据缺失", "数据获取失败", "获取失败")
+        return not any(marker in section_md for marker in failure_markers)
 
     @staticmethod
     def _check_staleness(content: str) -> int:
@@ -205,22 +222,7 @@ class AssemblyMixin:
 
     def assemble_data_pack(self, ts_code: str) -> str:
         """Assemble complete data_pack_market.md combining all sections."""
-        timestamp = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
-        currency = self._detect_currency(ts_code)
-        self._currency = currency
-        unit_label = {"HKD": "百万港元", "USD": "百万美元"}.get(currency, "百万元")
-        lines = [
-            format_header(1, f"数据包 — {ts_code}"),
-            "",
-            f"*生成时间: {timestamp}*",
-            f"*数据来源: Tushare Pro*",
-            f"*金额单位: {unit_label} (除特殊标注)*",
-        ]
-        if currency == "HKD":
-            lines.append(f"*报表币种: HKD*")
-        elif currency == "USD":
-            lines.append(f"*报表币种: USD*")
-        lines.extend(["", "---", ""])
+        lines = [self._build_header(ts_code)]
 
         if self._is_us(ts_code):
             sections = [
@@ -281,7 +283,8 @@ class AssemblyMixin:
                 section_md = method(ts_code)
                 lines.append(section_md)
                 lines.append("")
-                completed += 1
+                if self._section_succeeded(section_md):
+                    completed += 1
             except Exception as e:
                 # Attempt yfinance fallback for market data sections
                 yf_data = self._yf_fallback_price(ts_code)
@@ -340,7 +343,7 @@ class AssemblyMixin:
         wc = WarningsCollector()
         try:
             if self._is_us(ts_code) or self._is_hk(ts_code):
-                # HK: use stored data instead of re-calling A-share-only APIs
+                # Foreign-market collectors already keep their normalized frames.
                 for label, store_key in [
                     ("合并利润表", "income"),
                     ("合并资产负债表", "balance_sheet"),
@@ -349,13 +352,17 @@ class AssemblyMixin:
                     stored = self._store.get(store_key)
                     wc.check_missing_data(label, stored if stored is not None else pd.DataFrame())
             else:
-                # A-share: Check missing data + YoY anomaly for core financial statements
-                for label, api, fields in [
-                    ("合并利润表", "income", "ts_code,end_date,revenue,n_income_attr_p"),
-                    ("合并资产负债表", "balancesheet", "ts_code,end_date,total_assets"),
-                    ("现金流量表", "cashflow", "ts_code,end_date,n_cashflow_act"),
+                # A-share: reuse frames populated by the section collectors above.
+                # A missing key means that collector already returned no usable
+                # data; querying the same endpoint again would add latency without
+                # improving the warning signal.
+                for label, store_key, value_fields in [
+                    ("合并利润表", "income", ("revenue", "n_income_attr_p")),
+                    ("合并资产负债表", "balance_sheet", ("total_assets",)),
+                    ("现金流量表", "cashflow", ("n_cashflow_act",)),
                 ]:
-                    df = self._safe_call(api, ts_code=ts_code, fields=fields)
+                    stored = self._store.get(store_key)
+                    df = stored if isinstance(stored, pd.DataFrame) else pd.DataFrame()
                     wc.check_missing_data(label, df)
                     if not df.empty and "end_date" in df.columns:
                         # Filter to annual reports only (end_date ending in "1231")
@@ -363,21 +370,20 @@ class AssemblyMixin:
                         annual = annual.sort_values("end_date", ascending=False)
                         if not annual.empty:
                             dates = annual["end_date"].astype(str).str[:4].tolist()
-                            for col in fields.split(",")[2:]:  # skip ts_code, end_date
+                            for col in value_fields:
                                 if col in annual.columns:
                                     wc.check_yoy_change(label, col, annual[col].tolist(), dates=dates)
 
                 # Audit risk check
-                audit_df = self._safe_call("fina_audit", ts_code=ts_code,
-                                           fields="ts_code,end_date,audit_agency,audit_result")
+                stored_audit = self._store.get("audit")
+                audit_df = stored_audit if isinstance(stored_audit, pd.DataFrame) else pd.DataFrame()
                 if not audit_df.empty and "audit_result" in audit_df.columns:
                     wc.check_audit_risk(str(audit_df.iloc[0].get("audit_result", "")))
 
-            # Balance sheet risk checks (goodwill, debt ratio) — use stored data for HK/US
-            bs_df = self._store.get("balance_sheet") if (self._is_hk(ts_code) or self._is_us(ts_code)) else \
-                self._safe_call("balancesheet", ts_code=ts_code,
-                                fields="ts_code,end_date,goodwill,total_assets,total_liab")
-            if bs_df is not None and not bs_df.empty:
+            # Balance-sheet risk checks use the same normalized frame for every market.
+            stored_bs = self._store.get("balance_sheet")
+            bs_df = stored_bs if isinstance(stored_bs, pd.DataFrame) else pd.DataFrame()
+            if not bs_df.empty:
                 latest = bs_df.iloc[0]
                 gw = latest.get("goodwill", 0) or 0
                 ta = latest.get("total_assets", 0) or 0

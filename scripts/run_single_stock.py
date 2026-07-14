@@ -20,10 +20,25 @@ import argparse
 import shutil
 import subprocess
 import sys
+from datetime import date
 from pathlib import Path
 
-from config import validate_stock_code
-from continue_single_stock import _validation_command, build_step5_prompt, build_step7_prompt, build_step8_prompt
+if __package__:
+    from .config import validate_stock_code
+    from .continue_single_stock import (
+        _validation_command,
+        build_step5_prompt,
+        build_step7_prompt,
+        build_step8_prompt,
+    )
+else:
+    from config import validate_stock_code
+    from continue_single_stock import (
+        _validation_command,
+        build_step5_prompt,
+        build_step7_prompt,
+        build_step8_prompt,
+    )
 
 
 def parse_args() -> argparse.Namespace:
@@ -32,6 +47,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--pdf", required=True, help="Path to annual report PDF")
     parser.add_argument("--output-dir", default=None, help="Output directory (default: output/{code})")
     parser.add_argument("--html", action="store_true", help="Reserved for future use; HTML is not part of v1 main flow")
+    parser.add_argument("--as-of", default=None, help="Point-in-time boundary (YYYY-MM-DD; default: today)")
     return parser.parse_args()
 
 
@@ -46,6 +62,7 @@ def main() -> None:
     project_root = Path(__file__).resolve().parent.parent
 
     ts_code = validate_stock_code(args.code)
+    as_of = args.as_of or date.today().isoformat()
     pdf_path = Path(args.pdf).expanduser().resolve()
     if not pdf_path.exists():
         raise SystemExit(f"PDF not found: {pdf_path}")
@@ -72,6 +89,7 @@ def main() -> None:
     pdf_sections_path = output_dir / "pdf_sections.json"
     data_pack_report_path = output_dir / "data_pack_report.md"
     valuation_output_path = output_dir / "valuation_computed.md"
+    snapshot_dir = output_dir / "data_snapshot"
     qualitative_report_path = output_dir / f"{code_prefix}_qualitative_report.md"
     turtle_report_path = output_dir / f"{code_prefix}_turtle_report.md"
     valuation_report_path = output_dir / f"{code_prefix}_valuation_report.md"
@@ -81,6 +99,8 @@ def main() -> None:
         str(project_root / "scripts" / "tushare_collector.py"),
         "--code", ts_code,
         "--output", str(data_pack_path),
+        "--as-of", as_of,
+        "--snapshot-dir", str(snapshot_dir),
     ], cwd=project_root)
 
     run_cmd([
@@ -106,6 +126,8 @@ def main() -> None:
         str(project_root / "scripts" / "valuation_engine.py"),
         "--code", ts_code,
         "--output-dir", str(output_dir),
+        "--as-of", as_of,
+        "--snapshot-dir", str(snapshot_dir),
     ], cwd=project_root)
 
     step5_prompt = build_step5_prompt(project_root, output_dir, qualitative_report_path)

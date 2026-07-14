@@ -8,12 +8,17 @@ import time
 
 import pandas as pd
 
-from tushare_modules.constants import _YF_INCOME_MAP, _YF_BALANCE_MAP, _YF_CASHFLOW_MAP
+from .constants import _YF_INCOME_MAP, _YF_BALANCE_MAP, _YF_CASHFLOW_MAP
 
 
 def _yf():
-    """Access yfinance module via tushare_collector for @patch compatibility."""
-    return sys.modules["tushare_collector"].yf
+    """Access the collector's patchable yfinance dependency in either import mode."""
+    collector = sys.modules.get("tushare_collector") or sys.modules.get(
+        "scripts.tushare_collector"
+    )
+    if collector is None:
+        raise RuntimeError("tushare_collector is not loaded")
+    return collector.yf
 
 
 class YFinanceMixin:

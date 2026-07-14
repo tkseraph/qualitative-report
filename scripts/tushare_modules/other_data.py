@@ -3,16 +3,14 @@
 Data methods: segments, holders, audit, risk-free rate, repurchase, pledge.
 """
 
-import sys
-
 import pandas as pd
 
-from format_utils import format_number, format_table, format_header
+if (__package__ or "").startswith("scripts."):
+    from ..format_utils import format_number, format_table, format_header
+else:  # direct script execution exposes tushare_modules as top-level
+    from format_utils import format_number, format_table, format_header
 
-
-def _yf():
-    """Access yfinance module via tushare_collector for @patch compatibility."""
-    return sys.modules["tushare_collector"].yf
+from .yfinance_integration import _yf
 
 
 class OtherDataMixin:
@@ -184,14 +182,17 @@ class OtherDataMixin:
             df = self._safe_call("fina_audit", ts_code=ts_code,
                                  fields="ts_code,end_date,audit_result,audit_agency,audit_fees")
         except RuntimeError:
+            self._store["audit"] = pd.DataFrame()
             lines.append("审计数据缺失\n")
             return "\n".join(lines)
 
         if df.empty:
+            self._store["audit"] = df.copy()
             lines.append("审计数据缺失\n")
             return "\n".join(lines)
 
         df = df.sort_values("end_date", ascending=False).head(3)
+        self._store["audit"] = df
         headers = ["年度", "审计意见", "会计事务所", "审计费用 (万元)"]
         rows = []
         for _, r in df.iterrows():
@@ -226,12 +227,12 @@ class OtherDataMixin:
         """Risk-free rate from 中债国债收益率曲线 (yc_cb)."""
         lines = [format_header(2, "14. 无风险利率"), ""]
         try:
-            today = pd.Timestamp.now().strftime("%Y%m%d")
+            today = self.as_of
             # Get recent 10-year government bond yield
             df = self._safe_call("yc_cb", ts_code="1001.CB",
                                  curve_type="0",
                                  curve_term="10",
-                                 start_date=(pd.Timestamp.now() - pd.DateOffset(months=1)).strftime("%Y%m%d"),
+                                 start_date=(self._as_of_timestamp() - pd.DateOffset(months=1)).strftime("%Y%m%d"),
                                  end_date=today,
                                  fields="trade_date,yield")
         except RuntimeError:
@@ -321,7 +322,7 @@ class OtherDataMixin:
             return "\n".join(lines)
 
         # Filter to last 3 years
-        three_years_ago = (pd.Timestamp.now() - pd.DateOffset(years=3)).strftime("%Y%m%d")
+        three_years_ago = (self._as_of_timestamp() - pd.DateOffset(years=3)).strftime("%Y%m%d")
         if "ann_date" in df.columns:
             df = df[df["ann_date"] >= three_years_ago].copy()
 

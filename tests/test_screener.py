@@ -596,8 +596,8 @@ class TestTier2HardVetoes:
             return pd.DataFrame()
 
         screener._safe_call = _mock_call
-        passed, reason = screener._check_hard_vetoes("A.SH")
-        assert not passed
+        status, reason = screener._check_hard_vetoes("A.SH")
+        assert status == "VETO"
         assert "pledge" in reason.lower()
 
     def test_non_standard_audit_vetoed(self, tmp_path):
@@ -619,8 +619,8 @@ class TestTier2HardVetoes:
             return pd.DataFrame()
 
         screener._safe_call = _mock_call
-        passed, reason = screener._check_hard_vetoes("A.SH")
-        assert not passed
+        status, reason = screener._check_hard_vetoes("A.SH")
+        assert status == "VETO"
         assert "audit" in reason.lower()
 
     def test_clean_stock_passes(self, tmp_path):
@@ -642,16 +642,17 @@ class TestTier2HardVetoes:
             return pd.DataFrame()
 
         screener._safe_call = _mock_call
-        passed, reason = screener._check_hard_vetoes("A.SH")
-        assert passed
+        status, reason = screener._check_hard_vetoes("A.SH")
+        assert status == "PASS"
         assert reason == ""
 
-    def test_missing_data_passes(self, tmp_path):
-        """Missing pledge/audit data should not veto."""
+    def test_missing_data_is_unknown(self, tmp_path):
+        """Missing pledge/audit data must fail closed as UNKNOWN."""
         screener = _make_screener(tmp_path)
         screener._safe_call = MagicMock(return_value=pd.DataFrame())
-        passed, reason = screener._check_hard_vetoes("A.SH")
-        assert passed
+        status, reason = screener._check_hard_vetoes("A.SH")
+        assert status == "UNKNOWN"
+        assert "missing_risk_data" in reason
 
 
 # ============================================================
@@ -693,6 +694,16 @@ class TestTier2FinancialQuality:
         screener._safe_call = MagicMock(return_value=self._make_fina_df(debt=80.0))
         passed, metrics = screener._check_financial_quality("A.SH")
         assert not passed
+
+    def test_missing_required_quality_metric_is_unknown(self, tmp_path):
+        screener = _make_screener(tmp_path)
+        screener._safe_call = MagicMock(
+            return_value=self._make_fina_df(roe=None)
+        )
+        passed, metrics = screener._check_financial_quality("A.SH")
+        assert not passed
+        assert metrics["quality_status"] == "UNKNOWN"
+        assert "roe_waa" in metrics["missing_quality_fields"]
 
     def _make_obs_mock(self, fina_df, cf_df, income_df):
         """Create a mock _safe_call that routes by API name for observation tests."""
@@ -779,6 +790,29 @@ class TestTier2FinancialQuality:
         screener._safe_call = self._make_obs_mock(fina_df, cf_df, income_df)
         passed, _ = screener._check_financial_quality("A.SH", channel="observation")
         assert not passed  # FCF margin = (3e9 - 5e9) / 20e9 = -10% < 0%
+
+    def test_observation_channel_missing_capex_fails_closed(self, tmp_path):
+        screener = _make_screener(tmp_path)
+        fina_df = self._make_fina_df(roe=2.0, gm=20.0, debt=50.0)
+        cf_df = pd.DataFrame({
+            "ts_code": ["A.SH"],
+            "end_date": ["20251231"],
+            "n_cashflow_act": [3e9],
+            "c_pay_acq_const_fiolta": [None],
+        })
+        income_df = pd.DataFrame({
+            "ts_code": ["A.SH"], "end_date": ["20251231"],
+            "revenue": [20e9],
+        })
+        screener._safe_call = self._make_obs_mock(fina_df, cf_df, income_df)
+
+        passed, metrics = screener._check_financial_quality(
+            "A.SH", channel="observation"
+        )
+
+        assert not passed
+        assert metrics["quality_status"] == "UNKNOWN"
+        assert metrics["missing_quality_fields"] == "capex"
 
     def test_empty_data_fails(self, tmp_path):
         screener = _make_screener(tmp_path)
@@ -875,6 +909,34 @@ class TestFactor2Metrics:
 
         screener._safe_call = _mock_call
         result = screener._extract_factor2_metrics("A.SH", total_mv_wan=50000)
+        assert result["AA"] is None
+        assert result["R"] is None
+
+    def test_missing_capex_does_not_overstate_owner_cash(self, tmp_path):
+        screener = _make_screener(tmp_path)
+        screener._rf_cache = 2.5
+        income_df = pd.DataFrame([{
+            "ts_code": "A.SH", "end_date": "20251231",
+            "n_income_attr_p": 1e9, "non_oper_income": 0,
+            "oth_income": 0, "asset_disp_income": 0,
+        }])
+        div_df = pd.DataFrame([{
+            "ts_code": "A.SH", "end_date": "20251231",
+            "cash_div_tax": 0.5, "base_share": 1e8,
+        }])
+        cf_df = pd.DataFrame([{
+            "ts_code": "A.SH", "end_date": "20251231",
+            "n_cashflow_act": 1.5e9, "c_pay_acq_const_fiolta": None,
+        }])
+
+        def _mock_call(api_name, **kwargs):
+            return {"income": income_df, "dividend": div_df, "cashflow": cf_df}.get(
+                api_name, pd.DataFrame()
+            )
+
+        screener._safe_call = _mock_call
+        result = screener._extract_factor2_metrics("A.SH", total_mv_wan=50000)
+
         assert result["AA"] is None
         assert result["R"] is None
 
@@ -1107,8 +1169,10 @@ class TestFactor4Metrics:
 
         # EBITDA should use fina_indicator value: 7.5e9 / 1e6 = 7500
         assert abs(result["ebitda"] - 7500.0) < 0.01
-        # FCF should use fina_indicator value: 5e9 / 1e6 = 5000
-        assert abs(result["fcf"] - 5000.0) < 0.01
+        # Equity FCF remains CFO-capex; FCFF is reported separately against EV.
+        assert abs(result["fcf"] - 4000.0) < 0.01
+        assert abs(result["fcff"] - 5000.0) < 0.01
+        assert result["fcff_ev_yield"] > 0
         # Net debt = -5e8 / 1e6 = -500 (net cash position)
         # EV = mkt_cap + net_debt = 200000 + (-500) = 199500
         assert abs(result["ev"] - 199500.0) < 0.01
@@ -1200,11 +1264,11 @@ class TestFloorPrice:
         result = screener._extract_floor_price("A.SH", close=50.0,
                                                 total_mv_wan=100000)
         assert "baselines" in result
-        assert len(result["baselines"]) >= 3  # at least NLA, BVPS, 10yr_low
+        assert len(result["baselines"]) >= 3
         assert result["composite_baseline"] is not None
         assert result["premium"] is not None
 
-    def test_10yr_low_included(self, tmp_path):
+    def test_raw_10yr_low_is_excluded_without_adjusted_prices(self, tmp_path):
         screener = _make_screener(tmp_path)
         screener._rf_cache = None
         weekly_df = pd.DataFrame({
@@ -1222,7 +1286,25 @@ class TestFloorPrice:
         result = screener._extract_floor_price("A.SH", close=50.0,
                                                 total_mv_wan=100000)
         method_names = [n for n, _ in result.get("baselines", [])]
-        assert "10yr_low" in method_names
+        assert "10yr_adjusted_low" not in method_names
+
+    def test_adjusted_10yr_low_is_included(self, tmp_path):
+        screener = _make_screener(tmp_path)
+        screener._rf_cache = None
+        weekly_df = pd.DataFrame({
+            "ts_code": ["A.SH"] * 2,
+            "trade_date": ["20260101", "20200101"],
+            "close": [50.0, 20.0],
+            "adj_close": [50.0, 32.0],
+        })
+        screener._safe_call = lambda api_name, **kwargs: (
+            weekly_df if api_name == "weekly" else pd.DataFrame()
+        )
+        result = screener._extract_floor_price(
+            "A.SH", close=50.0, total_mv_wan=100000
+        )
+        method_names = [n for n, _ in result.get("baselines", [])]
+        assert "10yr_adjusted_low" in method_names
 
     def test_missing_data_partial_result(self, tmp_path):
         screener = _make_screener(tmp_path)
@@ -1280,6 +1362,23 @@ class TestCompositeScoring:
         result = screener._compute_rankings(df)
         assert len(result) == 3
         assert not result["composite_score"].isna().all()
+        assert "ranking_coverage" in result.columns
+        assert "ranking_eligible" in result.columns
+
+    def test_missing_values_never_receive_top_percentile(self, tmp_path):
+        screener = _make_screener(tmp_path)
+        df = pd.DataFrame({
+            "roe_waa": [20.0, 10.0, None],
+            "fcf_yield": [8.0, 4.0, None],
+            "R": [5.0, 3.0, None],
+            "ev_ebitda": [6.0, 10.0, None],
+            "floor_premium": [10.0, 30.0, None],
+        })
+        result = screener._compute_rankings(df)
+        missing = result[result["roe_waa"].isna()].iloc[0]
+        assert missing["composite_score"] == 0
+        assert missing["ranking_coverage"] == 0
+        assert not bool(missing["ranking_eligible"])
 
     def test_empty_input(self, tmp_path):
         screener = _make_screener(tmp_path)

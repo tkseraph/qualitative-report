@@ -4,20 +4,18 @@ Financial statement get_* methods: basic info, market data, income, balance shee
 cashflow, dividends, weekly prices, financial indicators. Each with CN/HK/US variants.
 """
 
-import sys
-
 import pandas as pd
 
-from format_utils import format_number, format_table, format_header
+if (__package__ or "").startswith("scripts."):
+    from ..format_utils import format_number, format_table, format_header
+else:  # direct script execution exposes tushare_modules as top-level
+    from format_utils import format_number, format_table, format_header
 
-
-def _yf():
-    """Access yfinance module via tushare_collector for @patch compatibility."""
-    return sys.modules["tushare_collector"].yf
-from tushare_modules.constants import (
+from .constants import (
     HK_INCOME_MAP, HK_BALANCE_MAP, HK_CASHFLOW_MAP,
     US_INCOME_MAP, US_BALANCE_MAP, US_CASHFLOW_MAP,
 )
+from .yfinance_integration import _yf
 
 
 class FinancialsMixin:
@@ -40,8 +38,16 @@ class FinancialsMixin:
         row = basic.iloc[0]
 
         # Get latest daily_basic for valuation
+        basic_start = (
+            self._as_of_timestamp() - pd.DateOffset(days=14)
+        ).strftime("%Y%m%d")
         daily = self._safe_call("daily_basic", ts_code=ts_code,
+                                start_date=basic_start, end_date=self.as_of,
                                 fields="ts_code,trade_date,close,pe_ttm,pb,total_mv,circ_mv,total_share,float_share")
+        if not daily.empty:
+            daily = daily[daily["trade_date"].astype(str) <= self.as_of].sort_values(
+                "trade_date", ascending=False
+            )
         val_rows = []
         if not daily.empty:
             self._store["basic_info"] = daily
@@ -181,8 +187,8 @@ class FinancialsMixin:
         if self._is_us(ts_code):
             return self._get_market_data_us(ts_code)
 
-        today = pd.Timestamp.now().strftime("%Y%m%d")
-        year_ago = (pd.Timestamp.now() - pd.DateOffset(years=1)).strftime("%Y%m%d")
+        today = self.as_of
+        year_ago = (self._as_of_timestamp() - pd.DateOffset(years=1)).strftime("%Y%m%d")
 
         df = self._safe_call("daily", ts_code=ts_code,
                              start_date=year_ago, end_date=today,
@@ -237,8 +243,8 @@ class FinancialsMixin:
         # Fallback: hk_daily (requires broker permission)
         df = pd.DataFrame()
         try:
-            today = pd.Timestamp.now().strftime("%Y%m%d")
-            year_ago = (pd.Timestamp.now() - pd.DateOffset(years=1)).strftime("%Y%m%d")
+            today = self.as_of
+            year_ago = (self._as_of_timestamp() - pd.DateOffset(years=1)).strftime("%Y%m%d")
             df = self._safe_call("hk_daily", ts_code=ts_code,
                                  start_date=year_ago, end_date=today,
                                  fields="ts_code,trade_date,open,high,low,close,vol,amount")
@@ -304,7 +310,7 @@ class FinancialsMixin:
 
         df = self._safe_call("income", ts_code=ts_code,
                              report_type=report_type,
-                             fields="ts_code,end_date,report_type,"
+                             fields="ts_code,ann_date,f_ann_date,end_date,report_type,update_flag,"
                                     "revenue,oper_cost,biz_tax_surchg,"
                                     "sell_exp,admin_exp,rd_exp,fin_exp,"
                                     "assets_impair_loss,credit_impa_loss,"
@@ -534,7 +540,7 @@ class FinancialsMixin:
 
         df = self._safe_call("balancesheet", ts_code=ts_code,
                              report_type=report_type,
-                             fields="ts_code,end_date,report_type,"
+                             fields="ts_code,ann_date,f_ann_date,end_date,report_type,update_flag,"
                                     "money_cap,trad_asset,notes_receiv,"
                                     "accounts_receiv,oth_receiv,inventories,"
                                     "oth_cur_assets,total_cur_assets,"
@@ -545,7 +551,7 @@ class FinancialsMixin:
                                     "non_cur_liab_due_1y,oth_cur_liab,"
                                     "total_cur_liab,lt_borr,bond_payable,"
                                     "total_liab,defer_tax_assets,defer_tax_liab,"
-                                    "total_hldr_eqy_exc_min_int,minority_int")
+                                    "total_hldr_eqy_exc_min_int,minority_int,total_share")
         section_label = "4P. 母公司资产负债表" if report_type == "6" else "4. 合并资产负债表"
         lines = [format_header(2, section_label), ""]
 
@@ -768,7 +774,7 @@ class FinancialsMixin:
 
         df = self._safe_call("cashflow", ts_code=ts_code,
                              report_type="1",
-                             fields="ts_code,end_date,report_type,"
+                             fields="ts_code,ann_date,f_ann_date,end_date,report_type,update_flag,"
                                     "n_cashflow_act,n_cashflow_inv_act,"
                                     "n_cash_flows_fnc_act,c_pay_acq_const_fiolta,"
                                     "depr_fa_coga_dpba,amort_intang_assets,"
@@ -1213,8 +1219,8 @@ class FinancialsMixin:
         if self._is_us(ts_code):
             return self._get_weekly_prices_us(ts_code)
 
-        today = pd.Timestamp.now().strftime("%Y%m%d")
-        ten_years_ago = (pd.Timestamp.now() - pd.DateOffset(years=10)).strftime("%Y%m%d")
+        today = self.as_of
+        ten_years_ago = (self._as_of_timestamp() - pd.DateOffset(years=10)).strftime("%Y%m%d")
 
         df = self._safe_call("weekly", ts_code=ts_code,
                              start_date=ten_years_ago, end_date=today,
@@ -1287,8 +1293,8 @@ class FinancialsMixin:
         # Fallback: hk_daily → resample to weekly
         if df.empty:
             try:
-                today = pd.Timestamp.now().strftime("%Y%m%d")
-                ten_years_ago = (pd.Timestamp.now() - pd.DateOffset(years=10)).strftime("%Y%m%d")
+                today = self.as_of
+                ten_years_ago = (self._as_of_timestamp() - pd.DateOffset(years=10)).strftime("%Y%m%d")
                 daily = self._safe_call("hk_daily", ts_code=ts_code,
                                         start_date=ten_years_ago, end_date=today,
                                         fields="ts_code,trade_date,open,high,low,close,vol,amount")
@@ -1430,7 +1436,7 @@ class FinancialsMixin:
             return self._get_fina_indicators_us(ts_code)
 
         df = self._safe_call("fina_indicator", ts_code=ts_code,
-                             fields="ts_code,end_date,roe,roe_waa,"
+                             fields="ts_code,ann_date,end_date,roe,roe_waa,"
                                     "grossprofit_margin,netprofit_margin,"
                                     "rd_exp,current_ratio,quick_ratio,"
                                     "assets_turn,debt_to_assets,"
@@ -1657,4 +1663,3 @@ class FinancialsMixin:
         return "\n".join(lines)
 
     # --- Feature #24: Section 9 — Business segments ---
-

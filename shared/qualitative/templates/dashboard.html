@@ -22,49 +22,82 @@
 </head>
 <body>
 
-<div class="container">
-  <nav class="site-nav">
-    <a href="/" class="nav-logo">Terance Jiang</a>
-    <div class="nav-links">
-      <a href="/zh/stock/" class="active">个股研究</a>
-      <a href="/zh/essays/">投资随想</a>
-      <a href="/zh/sectors/">行业分析</a>
-      <a href="/zh/about.html">关于</a>
-    </div>
-  </nav>
-</div>
-
 <div class="report-body">
 
-<div class="header">
-  <div class="ticker">{{ exchange }} · {{ industry }} · {{ stock_code }}</div>
-  <h1>{{ company_name }} · 商业质量评估</h1>
-  <div class="date">Report generated {{ generated_date }} · Price ¥{{ current_price }} · Mkt Cap ¥{{ market_cap }}</div>
-</div>
-
-<!-- Verdict -->
-<div class="verdict {{ verdict_class }}">
-  <div>
-    <div class="verdict-label">Business Quality Verdict</div>
-    <div class="verdict-text">
-      <span class="tag {{ verdict_tag_class }}">{{ verdict_tag }}</span> &nbsp;
-      {{ verdict_text }}
+<section class="sample-hero report-hero">
+  <div class="header">
+    <div class="ticker">{{ exchange }} · {{ industry }} · {{ stock_code }}</div>
+    <h1>{{ company_name }} · 商业质量评估</h1>
+    <div class="date">Report generated {{ generated_date }} · Price ¥{{ current_price }} · Mkt Cap ¥{{ market_cap }}</div>
+    <div class="article-meta-grid">
+      <div class="article-meta-item"><span>Market</span><strong>{{ exchange }}</strong></div>
+      <div class="article-meta-item"><span>Industry</span><strong>{{ industry }}</strong></div>
+      <div class="article-meta-item"><span>Ticker</span><strong>{{ stock_code }}</strong></div>
+      <div class="article-meta-item"><span>Date</span><strong>{{ generated_date }}</strong></div>
+    </div>
+    <div class="research-flow-index" aria-label="阅读路径">
+      <span>阅读路径</span>
+      <strong>Verdict</strong>
+      <strong>Evidence</strong>
+      <strong>Dimensions</strong>
+      <strong>Risks</strong>
     </div>
   </div>
-</div>
 
-<!-- First-screen Card -->
-{% if first_screen_card %}
-<h2>首屏摘要</h2>
-<div class="callout first-screen-card">
-  {{ first_screen_card }}
-</div>
-{% endif %}
+  <div class="verdict {{ verdict_class }} hero-verdict verdict-banner first-screen-thesis-card">
+    <div>
+      <div class="verdict-label">Business Quality Verdict</div>
+      <div class="verdict-text">
+        <span class="tag {{ verdict_tag_class }}">{{ verdict_tag }}</span> &nbsp;
+        {{ verdict_text }}
+      </div>
+    </div>
+  </div>
+
+  {% if first_screen_thesis %}
+  <div class="hero-rating-stack">
+    <div class="section-eyebrow">首屏摘要 · 核心判断</div>
+    <div class="hero-rating-primary">{{ first_screen_thesis.business_quality }}</div>
+    {% if first_screen_thesis.company_essence %}<p>{{ first_screen_thesis.company_essence }}</p>{% endif %}
+  </div>
+  <div class="hero-thesis-grid" aria-label="首屏投资判断">
+    {% if first_screen_thesis.company_essence %}
+    <div class="hero-thesis-card hero-company-essence">
+      <span>公司本质</span>
+      <strong>{{ first_screen_thesis.company_essence }}</strong>
+    </div>
+    {% endif %}
+    {% if first_screen_thesis.moat_source %}
+    <div class="hero-thesis-card hero-moat-source">
+      <span>护城河来源</span>
+      <strong>{{ first_screen_thesis.moat_source }}</strong>
+    </div>
+    {% endif %}
+    {% if first_screen_thesis.max_risk %}
+    <div class="hero-thesis-card hero-risk-card">
+      <span>最大风险</span>
+      <strong>{{ first_screen_thesis.max_risk }}</strong>
+    </div>
+    {% endif %}
+    {% if first_screen_thesis.refutation %}
+    <div class="hero-thesis-card hero-refutation-card">
+      <span>反证条件</span>
+      <strong>{{ first_screen_thesis.refutation }}</strong>
+    </div>
+    {% endif %}
+  </div>
+  {% elif first_screen_card %}
+  <div class="callout first-screen-card hero-first-screen">
+    <div class="section-eyebrow">首屏摘要</div>
+    {{ first_screen_card }}
+  </div>
+  {% endif %}
+</section>
 
 <!-- KPI Snapshot -->
 <h2>Quality Snapshot</h2>
 
-<div class="grid g4">
+<div class="grid g4 snapshot-grid kpi-grid">
   {% for card in kpi_cards[:4] %}
   <div class="metric {{ card.css_class }}">
     <div class="label">{{ card.label }}</div>
@@ -75,7 +108,7 @@
 </div>
 
 {% if kpi_cards|length > 4 %}
-<div class="grid g4">
+<div class="grid g4 snapshot-grid snapshot-grid-secondary kpi-grid">
   {% for card in kpi_cards[4:8] %}
   <div class="metric {{ card.css_class }}">
     <div class="label">{{ card.label }}</div>
@@ -89,32 +122,85 @@
 <!-- Executive Summary -->
 {% if executive_summary %}
 <h2>Executive Summary</h2>
-<div class="callout">
+<div class="callout executive-summary-card">
   {{ executive_summary }}
 </div>
+{% if executive_charts %}
+<div class="trend-chart-grid embedded-chart-grid executive-chart-grid" data-chart-placement="executive-summary">
+  {% for chart in executive_charts %}
+  <div class="trend-chart-card embedded-chart-card" data-chart-type="trend-table">
+    <div class="section-eyebrow">Core Evidence Chart</div>
+    <div class="trend-chart-title{% if chart.title_class %} {{ chart.title_class }}{% endif %}">{{ chart.title }}</div>
+    {% if chart.readout %}<div class="trend-chart-readout">读图结论：{{ chart.readout }}</div>{% endif %}
+    {{ chart.chart_html }}
+    {{ chart.table_html }}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
 {% endif %}
 
 <!-- Core Contradiction -->
 {% if core_contradiction %}
 <h2>核心矛盾与反证条件</h2>
-<div class="callout core-contradiction">
+<div class="callout core-contradiction risk-panel">
   {{ core_contradiction }}
 </div>
 {% endif %}
 
-<!-- Future Observations -->
-{% if future_observations %}
-<h2>未来观察变量</h2>
-<div class="callout future-observations">
-  {{ future_observations }}
-</div>
+<!-- Generic Trend Charts -->
+{% if trend_charts %}
+<section class="research-article-section trend-chart-section">
+  <h2>关键趋势图表</h2>
+  <div class="trend-chart-grid" data-chart-type="multi-year-trend">
+    {% for chart in trend_charts %}
+    <div class="trend-chart-card" data-chart-type="trend-table">
+      <div class="section-eyebrow">Multi-year Trend</div>
+      <div class="trend-chart-title{% if chart.title_class %} {{ chart.title_class }}{% endif %}">{{ chart.title }}</div>
+      {% if chart.readout %}<div class="trend-chart-readout">读图结论：{{ chart.readout }}</div>{% endif %}
+      {{ chart.chart_html }}
+      {{ chart.table_html }}
+    </div>
+    {% endfor %}
+  </div>
+</section>
+<div class="section-divider"></div>
 {% endif %}
 
 <!-- Dimension Sections -->
 {% for dim in dimensions %}
-<h2>{{ dim.title }}{% if dim.badge %} &nbsp;<span class="tag {{ dim.badge_class }}">{{ dim.badge }}</span>{% endif %}</h2>
-{{ dim.content }}
+<section class="dimension-card">
+  <h2>{{ dim.title }}{% if dim.badge %} &nbsp;<span class="tag {{ dim.badge_class }}">{{ dim.badge }}</span>{% endif %}</h2>
+  <div class="dimension-content">
+    {% if dim.charts %}
+    <div class="trend-chart-grid embedded-chart-grid dimension-chart-grid" data-chart-placement="{{ dim.title }}">
+      {% for chart in dim.charts %}
+      <div class="trend-chart-card embedded-chart-card" data-chart-type="trend-table">
+        <div class="section-eyebrow">Core Evidence Chart</div>
+        <div class="trend-chart-title{% if chart.title_class %} {{ chart.title_class }}{% endif %}">{{ chart.title }}</div>
+        {% if chart.readout %}<div class="trend-chart-readout">读图结论：{{ chart.readout }}</div>{% endif %}
+        {{ chart.chart_html }}
+        {{ chart.table_html }}
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+    {{ dim.content }}
+  </div>
+</section>
 {% endfor %}
+
+<!-- Cross Validation Research -->
+{% if cross_validation_research %}
+<section class="research-article-section cross-validation-section">
+  <h2>交叉验证与深度分析</h2>
+  <div class="callout cross-validation-panel">
+    <div class="section-eyebrow">Cross Validation Research</div>
+    {{ cross_validation_research }}
+  </div>
+</section>
+<div class="section-divider"></div>
+{% endif %}
 
 <!-- Conclusion -->
 {% if conclusion %}
@@ -122,9 +208,30 @@
 {{ conclusion }}
 {% endif %}
 
+<!-- Future Observations -->
+{% if future_observations %}
+<section class="research-article-section future-observations-section">
+  <h2>未来观察变量</h2>
+  <div class="callout future-observations observation-panel">
+    {{ future_observations }}
+  </div>
+</section>
+{% endif %}
+
+<!-- Report Limitations -->
+{% if limitations_warnings %}
+<details class="appendix-panel report-limitations-panel">
+  <summary>Appendix · 报告局限与数据警示</summary>
+  <div class="details-content">
+    <div class="section-eyebrow">Research Confidence & Data Warnings</div>
+    {{ limitations_warnings }}
+  </div>
+</details>
+{% endif %}
+
 <!-- Structured Parameters -->
 {% if parameters_table %}
-<details>
+<details class="appendix-panel structured-parameters-panel">
   <summary>Structured Parameters · 结构化参数（机器读取 / 附录）</summary>
   <div class="details-content">
     {{ parameters_table }}
@@ -134,7 +241,7 @@
 
 <!-- Framework Guide Appendix -->
 {% if framework_guide %}
-<details>
+<details class="appendix-panel framework-guide-panel">
   <summary>Appendix · 分析框架与评级标准说明</summary>
   <div class="details-content">
     {{ framework_guide }}
@@ -142,12 +249,233 @@
 </details>
 {% endif %}
 
-<div class="footer">
+<div class="footer report-disclaimer">
   <strong>Disclaimer:</strong> 本报告基于公开数据的结构化分析，不构成投资建议。分析框架参考 Greenwald 竞争优势理论与传统护城河分析方法。<br>
   Generated with 通用定性分析模块 v2.0 · {{ generated_date }}
 </div>
 
 </div><!-- /report-body -->
 
+{% if has_trend_charts %}
+<script>
+(function drawTrendCharts(){
+  var colors = ['#2563a0', '#1a7a5a', '#a06c1a', '#c0392b', '#6c5ce7'];
+  var font = '11px -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif';
+
+  function numericValues(datasets){
+    var values = [];
+    datasets.forEach(function(ds){ ds.values.forEach(function(v){ if (typeof v === 'number') values.push(v); }); });
+    return values;
+  }
+
+  function extent(values){
+    if (!values.length) return {min: 0, max: 1};
+    var min = Math.min.apply(null, values);
+    var max = Math.max.apply(null, values);
+    if (min === max) { min -= 1; max += 1; }
+    return {min: min, max: max};
+  }
+
+  function formatValue(value, unit){
+    if (typeof value !== 'number') return '';
+    var rounded = Math.abs(value) >= 100 ? value.toFixed(0) : value.toFixed(1).replace(/\.0$/, '');
+    return unit ? rounded + unit : rounded;
+  }
+
+  function prepareCanvas(canvas){
+    var ctx = canvas.getContext('2d');
+    var width = canvas.clientWidth || 640;
+    var height = canvas.clientHeight || 220;
+    var dpr = window.devicePixelRatio || 1;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, width, height);
+    ctx.font = font;
+    return {ctx: ctx, width: width, height: height, pad: {left: 58, right: 58, top: 28, bottom: 38}};
+  }
+
+  function drawAxes(ctx, width, height, pad){
+    ctx.strokeStyle = 'rgba(0,0,0,.12)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pad.left, pad.top);
+    ctx.lineTo(pad.left, height - pad.bottom);
+    ctx.lineTo(width - pad.right, height - pad.bottom);
+    ctx.stroke();
+  }
+
+  function drawLegend(ctx, datasets, pad, width){
+    var x = pad.left;
+    var y = 8;
+    var maxX = width - pad.right;
+    datasets.slice(0, 5).forEach(function(ds, i){
+      var label = ds.label + (ds.unit ? ' · ' + ds.unit : '');
+      var itemWidth = 22 + ctx.measureText(label).width;
+      if (x !== pad.left && x + itemWidth > maxX) {
+        x = pad.left;
+        y += 16;
+      }
+      ctx.fillStyle = colors[i % colors.length];
+      ctx.fillRect(x, y, 9, 9);
+      ctx.fillStyle = '#8a8a84';
+      ctx.fillText(label, x + 13, y + 8);
+      x += itemWidth + 14;
+    });
+  }
+
+  function drawLabels(ctx, labels, x, height){
+    ctx.fillStyle = '#8a8a84';
+    labels.forEach(function(label, i){ ctx.fillText(String(label).slice(0, 8), x(i) - 14, height - 12); });
+  }
+
+  function drawLineDataset(ctx, ds, dsIndex, labels, x, y){
+    ctx.strokeStyle = colors[dsIndex % colors.length];
+    ctx.fillStyle = colors[dsIndex % colors.length];
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ds.values.forEach(function(v, i){
+      if (typeof v !== 'number') return;
+      if (i === 0) ctx.moveTo(x(i), y(v)); else ctx.lineTo(x(i), y(v));
+    });
+    ctx.stroke();
+    ds.values.forEach(function(v, i){
+      if (typeof v !== 'number') return;
+      ctx.beginPath();
+      ctx.arc(x(i), y(v), 3, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+
+  function rectsOverlap(a, b){
+    return !(a.x + a.w < b.x || b.x + b.w < a.x || a.y + a.h < b.y || b.y + b.h < a.y);
+  }
+
+  function shouldDrawValueLabel(rect, occupiedLabelRects){
+    return !occupiedLabelRects.some(function(existing){ return rectsOverlap(rect, existing); });
+  }
+
+  function drawValueLabels(ctx, datasets, x, y, role, occupiedLabelRects){
+    occupiedLabelRects = occupiedLabelRects || [];
+    datasets.forEach(function(ds, dsIndex){
+      ctx.fillStyle = role === 'line' ? colors[(dsIndex + 3) % colors.length] : colors[dsIndex % colors.length];
+      ds.values.forEach(function(v, i){
+        if (typeof v !== 'number') return;
+        var label = formatValue(v, ds.unit);
+        var labelWidth = ctx.measureText(label).width;
+        var px = x(i) - labelWidth / 2;
+        var py = role === 'line' ? y(v) - 8 : y(v) - 4;
+        py = Math.max(12, py);
+        var rect = {x: px - 3, y: py - 10, w: labelWidth + 6, h: 12};
+        if (!shouldDrawValueLabel(rect, occupiedLabelRects)) return;
+        ctx.fillText(label, px, py);
+        occupiedLabelRects.push(rect);
+      });
+    });
+  }
+
+  function axisUnitLabel(sample){
+    if (!sample || !sample.unit) return '';
+    if (sample.unit === '亿元') return '金额 · 亿元';
+    if (sample.unit === '%' || sample.unit === 'pct') return '比例 · %';
+    if (sample.unit === 'x' || sample.unit === 'X') return '比率 · 倍';
+    return '单位 · ' + sample.unit;
+  }
+
+  function drawAxisMaxLabels(ctx, width, pad, barRange, lineRange, barSample, lineSample){
+    ctx.fillStyle = '#8a8a84';
+    ctx.textAlign = 'left';
+    var barLabel = axisUnitLabel(barSample);
+    if (barLabel) ctx.fillText(barLabel, 8, pad.top + 8);
+    ctx.textAlign = 'right';
+    var lineLabel = axisUnitLabel(lineSample);
+    if (lineLabel) ctx.fillText(lineLabel, width - 8, pad.top + 8);
+    ctx.textAlign = 'left';
+  }
+
+  function drawLineChart(canvas, payload){
+    var frame = prepareCanvas(canvas);
+    var ctx = frame.ctx, width = frame.width, height = frame.height, pad = frame.pad;
+    var values = numericValues(payload.datasets);
+    if (!payload.labels.length || !values.length) return;
+    var range = extent(values);
+    var x = function(i){ return pad.left + (width - pad.left - pad.right) * i / Math.max(1, payload.labels.length - 1); };
+    var y = function(v){ return pad.top + (height - pad.top - pad.bottom) * (1 - (v - range.min) / (range.max - range.min)); };
+    drawAxes(ctx, width, height, pad);
+    drawLabels(ctx, payload.labels, x, height);
+    payload.datasets.slice(0, 5).forEach(function(ds, dsIndex){ drawLineDataset(ctx, ds, dsIndex, payload.labels, x, y); });
+    drawLegend(ctx, payload.datasets, pad, width);
+  }
+
+  function drawBars(ctx, barSets, xCenter, y, zeroY, barWidth){
+    barSets.forEach(function(ds, dsIndex){
+      ctx.fillStyle = colors[dsIndex % colors.length];
+      ds.values.forEach(function(v, i){
+        if (typeof v !== 'number') return;
+        var left = xCenter(i) - (barSets.length * barWidth) / 2 + dsIndex * barWidth;
+        var top = y(v);
+        ctx.fillRect(left, Math.min(top, zeroY), barWidth * .82, Math.abs(zeroY - top));
+      });
+    });
+  }
+
+  function drawBarChart(canvas, payload){
+    var frame = prepareCanvas(canvas);
+    var ctx = frame.ctx, width = frame.width, height = frame.height, pad = frame.pad;
+    if (!payload.labels.length) return;
+    var barSets = payload.datasets.filter(function(ds){ return ds.role === 'bar'; }).slice(0, 5);
+    if (!barSets.length) barSets = payload.datasets.slice(0, 5);
+    var range = extent(numericValues(barSets));
+    var floor = Math.min(0, range.min);
+    var plotWidth = width - pad.left - pad.right;
+    var groupWidth = plotWidth / Math.max(1, payload.labels.length);
+    var barWidth = Math.max(8, groupWidth / Math.max(3, barSets.length + 2));
+    var xCenter = function(i){ return pad.left + groupWidth * i + groupWidth / 2; };
+    var y = function(v){ return pad.top + (height - pad.top - pad.bottom) * (1 - (v - floor) / (range.max - floor)); };
+    drawAxes(ctx, width, height, pad);
+    drawLabels(ctx, payload.labels, xCenter, height);
+    drawBars(ctx, barSets, xCenter, y, y(0), barWidth);
+    drawLegend(ctx, barSets, pad, width);
+    if (barSets[0]) { ctx.fillStyle = '#8a8a84'; ctx.fillText(formatValue(range.max, barSets[0].unit), 8, pad.top + 8); }
+  }
+
+  function drawBarLineChart(canvas, payload){
+    var frame = prepareCanvas(canvas);
+    var ctx = frame.ctx, width = frame.width, height = frame.height, pad = frame.pad;
+    if (!payload.labels.length) return;
+    var barSets = payload.datasets.filter(function(ds){ return ds.role === 'bar'; }).slice(0, 4);
+    var lineSets = payload.datasets.filter(function(ds){ return ds.role !== 'bar'; }).slice(0, 3);
+    if (!lineSets.length) return drawBarChart(canvas, payload);
+    var barRange = extent(numericValues(barSets));
+    var lineRange = extent(numericValues(lineSets));
+    var plotWidth = width - pad.left - pad.right;
+    var groupWidth = plotWidth / Math.max(1, payload.labels.length);
+    var barWidth = Math.max(6, groupWidth / Math.max(4, barSets.length + 2));
+    var xCenter = function(i){ return pad.left + groupWidth * i + groupWidth / 2; };
+    var barFloor = Math.min(0, barRange.min);
+    var barY = function(v){ return pad.top + (height - pad.top - pad.bottom) * (1 - (v - barFloor) / (barRange.max - barFloor)); };
+    var lineY = function(v){ return pad.top + (height - pad.top - pad.bottom) * (1 - (v - lineRange.min) / (lineRange.max - lineRange.min)); };
+    var lineX = function(i){ return xCenter(i); };
+    drawAxes(ctx, width, height, pad);
+    drawLabels(ctx, payload.labels, lineX, height);
+    drawBars(ctx, barSets, xCenter, barY, barY(0), barWidth);
+    lineSets.forEach(function(ds, dsIndex){ drawLineDataset(ctx, ds, dsIndex + barSets.length, payload.labels, lineX, lineY); });
+    var occupiedLabelRects = [];
+    drawValueLabels(ctx, barSets, xCenter, barY, 'bar', occupiedLabelRects);
+    drawValueLabels(ctx, lineSets, lineX, lineY, 'line', occupiedLabelRects);
+    drawLegend(ctx, barSets.concat(lineSets), pad, width);
+    drawAxisMaxLabels(ctx, width, pad, barRange, lineRange, barSets[0], lineSets[0]);
+  }
+
+  document.querySelectorAll('.chart-container canvas').forEach(function(canvas){
+    var container = canvas.closest('.chart-container');
+    var payload = JSON.parse(container.dataset.chartSeries || '{"labels":[],"datasets":[]}');
+    if (container.dataset.chartType === 'bar-table') drawBarChart(canvas, payload);
+    else if (container.dataset.chartType === 'bar-line-table' || container.dataset.chartType === 'bar-line-trend') drawBarLineChart(canvas, payload);
+    else drawLineChart(canvas, payload);
+  });
+})();
+</script>
+{% endif %}
 </body>
 </html>

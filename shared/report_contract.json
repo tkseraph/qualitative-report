@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "reports": {
+    "qualitative": {
+      "market_scope": "A-share",
+      "first_screen_card": {
+        "header": ["项目", "结论"],
+        "required_rows": ["公司本质", "商业质量", "护城河来源", "最大风险", "周期位置", "反证条件"]
+      },
+      "dimension_headings": ["维度一", "维度二", "维度三", "维度四", "维度五", "维度六"],
+      "d6": {
+        "decision_heading": "### SOTP 触发决策表",
+        "required_topics": ["是否触发 SOTP", "子公司利润", "投资收益", "母合差异", "非经常性损益", "控股折价", "触发阈值", "计算依据"]
+      },
+      "chart_ready": {
+        "conditional_company_types": ["强周期", "重资产", "周期公司", "capital-hungry"],
+        "minimum_modules": 5,
+        "allowed_types": ["line", "bar", "mixed"],
+        "required_metadata": ["chart_type", "x_axis", "unit_map"],
+        "required_archetypes": ["业务或区域结构", "资本消耗", "现金转化", "盈利能力趋势", "同业或效率对比"]
+      },
+      "future_observation": {
+        "priority_tiers": ["P0", "P1", "P2"],
+        "required_columns": ["优先级", "观察变量", "当前值 / 本地证据", "预警阈值", "触发后的重评动作"]
+      },
+      "machine_fields": [
+        "roe_5y_avg",
+        "moat_rating",
+        "moat_sustainability",
+        "management_rating",
+        "cyclicality",
+        "cycle_position",
+        "capital_intensity",
+        "entry_barrier",
+        "moat_existence"
+      ]
+    },
+    "turtle": {"market_scope": "A-share"},
+    "valuation": {"market_scope": "A-share"}
+  }
+}
