@@ -63,6 +63,16 @@ mkdir -p {output_dir}
 python3 scripts/tushare_collector.py --code {ts_code} --output {output_dir}/data_pack_market.md
 ```
 
+### 1A2：确定性预算（1A 完成后）
+
+```bash
+python3 scripts/quality_control.py \
+  --input {output_dir}/data_pack_market.md \
+  --output {output_dir}/computed_metrics.md
+```
+
+`computed_metrics.md` 提供 CM§1-CM§5：亿元换算、同比、多年统计、分红支付率和 PE 网格。成功时 Step 2 直接引用并标注 `[src: CM§N]`，禁止重复心算；输入缺失或部分 CM 跳过时允许降级，但必须展示未覆盖计算的完整算式并记录缺口，不阻断提示词准备。
+
 ### 1B：PDF 获取与加载
 
 **PDF 获取优先级**：
@@ -172,6 +182,8 @@ Agent(
     - {shared_dir}/qualitative/references/judgment_examples.md（判断锚点）
     - {shared_dir}/qualitative/references/framework_guide.md（框架定义）
     - {shared_dir}/qualitative/agents/writing_style.md（写作风格）
+    - {shared_dir}/qualitative/references/writing_style_rules.md（数字先行与溯源补充规则）
+    - {shared_dir}/qualitative/references/industry_metrics_lookup.md（仅查目标行业；历史经验参考，不是当期证据）
     - {shared_dir}/qualitative/references/output_schema.md（参数输出规范）
     [港股] + {shared_dir}/qualitative/references/market_rules_hk.md
     [美股] + {shared_dir}/qualitative/references/market_rules_us.md
@@ -180,12 +192,15 @@ Agent(
 
   数据文件：
     - Tushare 数据：{output_dir}/data_pack_market.md
+    - 确定性预算：{output_dir}/computed_metrics.md（若存在；CM 覆盖项直接引用）
     - 同业证据包：{output_dir}/peer_evidence.md（若存在，D2 优先读取；若缺失但 §8 同业信息不足，先按 data_collection.md 生成）
     - PDF 附注结构化数据：{output_dir}/data_pack_report.md（若存在，则作为优先读取的增强输入）
     - 年报 PDF：已在 context 中加载（如有）
 
   按照 qualitative_assessment_v2.md 的 6 维度框架进行完整分析。
   特别注意"收入质量分解"和"交叉验证"部分；若存在 data_pack_report.md，优先引用其中的 P13/P4/P6/SUB（P3 若有则一并使用）补强 D1/D4/D6 判断。若缺失，则继续按当前主路径完成分析。
+  支撑评级的数字使用 [src: CM§N] / [src: DP§N] / [src: 年报P.N] / [src: Web] / [src: 推断] 溯源，并在附录生成“数字溯源汇总”。这是一项辅助质量要求，不替代 shared/report_contract.json 与 scripts/validate_reports.py 的现有机器契约。
+  行业速查表只可用于发现异常和提出复核问题；其约 2024-2025 年历史经验可能过时，不得直接支撑评级、阈值或当期结论。
   若 data_pack_market.md 的 §8 行业与竞争缺少主要竞争对手、同业对比或竞品对标，或仍含 `待Agent WebSearch补充`，先执行 WebSearch 数据补充（按 data_collection.md）并使用全年口径生成 peer_evidence.md，再写 D2。D2 使用 peer_evidence.md 时必须遵守 Source type 和 Confidence：High 可支撑同业表和护城河判断，Medium 只作辅助背景，Low 只能提示方向或缺口，低置信来源不得支撑核心评级。peer set 控制在 2-4 个具名同业，指标控制在 4-6 项 WebSearch 能可靠覆盖的数据；不追求穷尽同业，不得扩展成全行业数据库，找不到统一口径就写 Evidence Gaps。强周期公司的 D3 轻量外部周期证据只补 2-3 个外部周期变量，例如需求 / 产量、价格趋势、主要成本变量，且必须是年度或全年口径；不新增庞大的周期数据库，找不到就写缺口。
   最终 Markdown 必须严格保留 qualitative_assessment_v2.md 的成品报告外壳：Business Quality Verdict / 商业质量总体评级、Quality Snapshot / 质量快照、Executive Summary / 执行摘要、未来观察变量、结构化参数、数据来源与免责声明。
   证据表必须回答一个明确投资问题，并按“投资问题 → 读图结论 → 表格证据 → 投资含义”组织；每组数据必须先说明它在验证哪个判断，表后必须写清楚该组证据如何影响评级、风险或反证阈值；不得只列数据不解释含义，不得把解释性字段混入图表友好数据列；图表友好数据列只放干净数值，读法、解释、证据、影响、判断、含义必须移到表前表后文字或非图表表格，不得把金额和证据写在同一个单元格。
@@ -202,6 +217,13 @@ Agent(
 - 每个 Agent 均接收完整 data_pack_market.md + 年报 PDF 相关章节
 - 不再使用 split_data_pack.py 预分发
 - Summary Agent 增加交叉验证职责
+
+### Step 2A：数字审计（报告写盘后）
+
+1. 运行 `scripts/report_consistency.py --report {output_dir}/{code_market}_qualitative_report.md --output {output_dir}/consistency_report.md`。退出码 1 仅表示提示性冲突，必须裁定真错误还是期间、母合或口径差异；退出码 2 表示文件错误。
+2. 若运行环境支持真正独立的 Agent，可在主草稿和 CM 进入其 context 前，按 `agents/cleanroom_audit.md` 生成 `cleanroom_metrics.md`；不支持时明确跳过，不得让主写作者模拟独立性。
+3. 按 `agents/numeric_audit.md` 对关键数字、CM 算式、溯源标签和一致性冲突做裁决。启发式审计为辅助层，最终硬门槛仍由现有 `shared/report_contract.json` 和 `scripts/validate_reports.py` 决定。
+4. `computed_metrics.md`、`cleanroom_metrics.md`、`consistency_report.md` 和 `audit.md` 均为内部工件，不写入公开报告的数据来源路径。
 
 ---
 
@@ -244,9 +266,13 @@ python3 scripts/report_to_html.py \
 │   ├── coordinator_v2.md              ← 本文件
 │   ├── qualitative_assessment_v2.md   ← 分析框架 v2
 │   ├── agents/writing_style.md        ← 写作风格（复用）
+│   ├── agents/cleanroom_audit.md      ← 独立重算协议
+│   ├── agents/numeric_audit.md        ← 数字审计协议
 │   └── references/                    ← 参考文件（复用）
 ├── scripts/
 │   ├── tushare_collector.py           ← Tushare 采集
+│   ├── quality_control.py             ← CM 确定性预算
+│   ├── report_consistency.py          ← 跨段数字一致性审计
 │   └── report_to_html.py             ← MD→HTML
 ├── strategies/turtle/
 │   └── phase2_PDF解析.md              ← 附注提取格式规范（Step 1C 引用）
@@ -254,6 +280,8 @@ python3 scripts/report_to_html.py \
     ├── annual_report.pdf              ← 年报 PDF
     ├── data_pack_market.md            ← Tushare 结构化数据
     ├── data_pack_report.md            ← PDF 附注结构化数据（Step 1C 输出，供下游策略）
+    ├── computed_metrics.md            ← 确定性预算（内部工件）
+    ├── consistency_report.md          ← 一致性扫描（内部工件）
     ├── {code_market}_qualitative_report.md    ← 分析报告
     └── {code_market}_qualitative_report.html  ← HTML 仪表盘（可选）
 ```

@@ -8,7 +8,16 @@ ${inputs}
 - ${project_root}/shared/qualitative/references/framework_guide.md
 - ${project_root}/shared/qualitative/references/output_schema.md
 - ${project_root}/shared/qualitative/agents/writing_style.md
+- ${project_root}/shared/qualitative/references/writing_style_rules.md（数字先行与溯源补充规则）
+- ${project_root}/shared/qualitative/references/industry_metrics_lookup.md（仅查目标行业；只能作历史经验参考）
+- ${project_root}/shared/qualitative/agents/cleanroom_audit.md（独立重算协议；运行环境支持独立 Agent 时使用）
+- ${project_root}/shared/qualitative/agents/numeric_audit.md（数字审计裁决协议）
 - ${project_root}/shared/report_contract.json（唯一机器契约源）
+
+数字计算纪律：若 computed_metrics.md 存在，CM§1-CM§5 覆盖的亿元换算、同比、多年统计、分红支付率和 PE 网格必须直接引用并标注 `[src: CM§N]`，禁止重复心算；CM 未覆盖的自定义计算必须展示数据、公式和结果。若该文件缺失或某节标记“跳过”，按原始数据逐步展示算式并把缺口写入报告局限，不得编造预算值。
+数字溯源：支撑评级的财务数字应使用 `[src: CM§N]`、`[src: DP§N]`、`[src: 年报P.N]`、`[src: Web]` 或 `[src: 推断]` 标注；表格可以使用表级来源。报告附录增加 `## 数字溯源汇总`，列出关键数字来源、推断和待补缺口，但不得替代 ${project_root}/shared/report_contract.json 或 ${project_root}/scripts/validate_reports.py 的既有强制契约。
+写作采用 lead-with-numbers（数字先行）：先给数值、比较基准和口径，再给“改善、承压、领先”等判断；不得用行业速查表中的经验区间直接支撑评级、阈值或当期结论。行业速查锚点可能已经过时，只能用于发现异常和提出复核问题，最终必须回到目标公司当期年报、公告或同口径行业数据验证。
+审计兼容规则：若运行环境支持真正独立的 Agent，应在阅读主报告草稿和 computed_metrics.md 之前按 cleanroom_audit.md 生成 cleanroom_metrics.md；不支持独立 Agent 时明确跳过，不得由主写作者伪装成“独立重算”。草稿完成后读取 consistency_report.md，并按 numeric_audit.md 裁定真错误与期间/母合/口径差异；这些审计工件均为内部文件，不进入公开报告。
 
 必须保留并强化成品报告外壳：Business Quality Verdict / 商业质量总体评级、Quality Snapshot / 质量快照、Executive Summary / 执行摘要、核心矛盾与反证条件、未来观察变量、数据来源与免责声明。
 首屏必须让读者快速看懂：商业质量评级、公司本质、护城河来源、最大风险、主要约束、周期位置（如适用）、反证条件。
@@ -61,4 +70,6 @@ D1-D6 每个维度必须使用二级标题“## 维度一：...”“## 维度�
 深度总结必须像文章结尾一样组织为：公司本质、为什么优势真实、最大风险、重评触发。
 ${qualitative_contract}
 输出文件：${qualitative_report_path}
-生成后运行验收：${validation_command}
+生成后先运行跨段数字一致性审计：${consistency_command}
+审计输出：${consistency_report_path}。退出码 1 表示发现提示性冲突，不是机器契约失败；必须逐项裁定真错误还是期间、母合或口径差异，真错误修正后重跑。退出码 2 才表示报告文件错误。
+最后运行现有强制验收：${validation_command}

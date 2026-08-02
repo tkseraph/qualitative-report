@@ -25,7 +25,7 @@ class OtherDataMixin:
 
         lines = [format_header(2, "9. 主营业务构成"), ""]
         try:
-            df = self._safe_call("fina_mainbz", ts_code=ts_code, type="P",
+            df = self._cached_call("fina_mainbz", ts_code=ts_code, type="P",
                                  fields="ts_code,end_date,bz_item,bz_sales,bz_profit,bz_cost")
         except RuntimeError:
             lines.append("数据缺失 (接口可能无权限)\n")
@@ -78,7 +78,7 @@ class OtherDataMixin:
         lines = [format_header(2, "7. 股东与治理 (部分)"), ""]
 
         try:
-            df = self._safe_call("top10_holders", ts_code=ts_code)
+            df = self._cached_call("top10_holders", ts_code=ts_code)
         except RuntimeError:
             lines.append("股东数据缺失\n")
             return "\n".join(lines)
@@ -179,7 +179,7 @@ class OtherDataMixin:
 
         lines = [format_header(3, "审计意见"), ""]
         try:
-            df = self._safe_call("fina_audit", ts_code=ts_code,
+            df = self._cached_call("fina_audit", ts_code=ts_code,
                                  fields="ts_code,end_date,audit_result,audit_agency,audit_fees")
         except RuntimeError:
             self._store["audit"] = pd.DataFrame()
@@ -229,7 +229,7 @@ class OtherDataMixin:
         try:
             today = self.as_of
             # Get recent 10-year government bond yield
-            df = self._safe_call("yc_cb", ts_code="1001.CB",
+            df = self._cached_call("yc_cb", ts_code="1001.CB",
                                  curve_type="0",
                                  curve_term="10",
                                  start_date=(self._as_of_timestamp() - pd.DateOffset(months=1)).strftime("%Y%m%d"),
@@ -310,7 +310,7 @@ class OtherDataMixin:
 
         lines = [format_header(2, "15. 股票回购"), ""]
         try:
-            df = self._safe_call("repurchase", ts_code=ts_code,
+            df = self._cached_call("repurchase", ts_code=ts_code,
                                  fields="ts_code,ann_date,end_date,proc,exp_date,"
                                         "vol,amount,high_limit,low_limit")
         except RuntimeError:
@@ -414,7 +414,7 @@ class OtherDataMixin:
 
         lines = [format_header(2, "16. 股权质押"), ""]
         try:
-            df = self._safe_call("pledge_stat", ts_code=ts_code,
+            df = self._cached_call("pledge_stat", ts_code=ts_code,
                                  fields="ts_code,end_date,pledge_count,"
                                         "unrest_pledge,rest_pledge,"
                                         "total_share,pledge_ratio")

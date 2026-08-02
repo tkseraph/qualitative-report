@@ -168,6 +168,7 @@ export TUSHARE_TOKEN='your_token_here'
 runner 直接生成的中间件：
 - `annual_report.pdf`
 - `data_pack_market.md`
+- `computed_metrics.md`（CM§1-CM§5 确定性预算：单位换算、同比、多年统计、分红率和 PE 网格）
 - `pdf_sections.json`
 - `data_pack_report.md`（如构建成功）
 - `valuation_computed.md`
@@ -183,7 +184,7 @@ runner 同时生成三份后续 workflow prompt：
 正式报告的首屏、D6、图表、观察变量和机器字段以 `shared/report_contract.json` 为唯一机器契约源；提示词生成器和 `validate_reports.py` 读取同一份契约。
 
 推荐顺序：
-1. Step 5：基于 `shared/qualitative/*` 生成 qualitative 商业质量报告。
+1. Step 5：基于 `shared/qualitative/*` 和 `computed_metrics.md` 生成 qualitative 商业质量报告；生成后先运行提示性的 `report_consistency.py` 跨段数字检查，再运行 `validate_reports.py` 硬验收。
 2. Step 7：基于 `strategies/turtle/*` 生成 turtle 龟龟投资策略报告；如果 `phase3_quantitative.md` 若不存在，请按 turtle coordinator 先生成，再组装最终 turtle 报告。Step 7 不要求 phase3_quantitative.md 预先存在。
 3. Step 8：基于 `strategies/valuation/*` 生成 valuation 最终估值报告。
 4. 对整个 output 目录运行三报告验收。
@@ -268,6 +269,22 @@ python scripts/validate_reports.py \
 
 如果验收失败，优先修正对应报告 prompt/template 或渲染/parser 兼容，而不是手改已经生成的报告。
 
+定性报告还提供两层数字质量辅助检查：
+
+```bash
+# 由 data pack 生成 CM§1-CM§5 确定性预算
+python scripts/quality_control.py \
+  --input output/<code_company>/data_pack_market.md \
+  --output output/<code_company>/computed_metrics.md
+
+# 扫描同一年度、同一指标在不同段落中的潜在数值冲突
+python scripts/report_consistency.py \
+  --report output/<code_company>/<code_market>_qualitative_report.md \
+  --output output/<code_company>/consistency_report.md
+```
+
+`report_consistency.py` 退出码 `1` 表示发现需要裁定的提示性冲突，不等同于报告必然错误；期间、母合口径或调整口径差异允许保留，但正文必须明确说明。最终硬门槛仍以 `shared/report_contract.json` 和 `validate_reports.py` 为准。
+
 qualitative 报告通过后，建议继续跑微信公众号 / HTML 本地预览，确认公众号摘要、KPI cards 和网页章节都能正常生成：
 
 ```bash
@@ -312,7 +329,13 @@ PYTHONPATH=scripts .venv/bin/python scripts/wechat_report.py \
 
 # 试运行（不调用 API）
 .venv/bin/python scripts/tushare_collector.py --code 600887 --dry-run
+
+# 强制刷新该标的财务缓存，或完全禁用 TTL 缓存
+.venv/bin/python scripts/tushare_collector.py --code 600887.SH --cache-refresh
+.venv/bin/python scripts/tushare_collector.py --code 600887.SH --no-cache
 ```
+
+财务接口默认缓存 7 天，周线和无风险利率缓存 24 小时；缓存键包含股票代码和 `as_of`，历史时点之间不会串数据。API 调用间隔默认 0.5 秒，可通过 `TUSHARE_RATE_DELAY` 调整；只有确认券商/VIP 中继无需客户端限速时才建议设为 `0`。
 
 输出 Markdown 包含以下数据段：
 
@@ -333,7 +356,7 @@ PYTHONPATH=scripts .venv/bin/python scripts/wechat_report.py \
 | §14 | 无风险利率 | yc_cb |
 | §15 | 股份回购 | repurchase |
 | §16 | 股权质押 | pledge_stat |
-| §17 | 衍生指标预计算 | compute_derived_metrics |
+| §17 | 衍生指标预计算（含 §17.10–§17.13 支付率、税后回报、G 系数与收入敏感性网格） | compute_derived_metrics |
 
 ### 年报解析（仅 Phase 2A）
 

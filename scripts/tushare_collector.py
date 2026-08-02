@@ -36,10 +36,12 @@ except ImportError:
     _yf_available = False
 
 if __package__:
+    from .cache_utils import ScreenerCache
     from .config import get_token, get_api_url, validate_stock_code
     from .data_snapshot import load_snapshot, save_snapshot, snapshot_exists
     from .format_utils import format_number, format_table, format_header
 else:
+    from cache_utils import ScreenerCache
     from config import get_token, get_api_url, validate_stock_code
     from data_snapshot import load_snapshot, save_snapshot, snapshot_exists
     from format_utils import format_number, format_table, format_header
@@ -70,11 +72,44 @@ else:
     )
 
 
+# TTL tiers for endpoints that are expensive but do not carry intraday prices.
+# Logical endpoint names are used so the keys stay stable in broker/VIP mode.
+_CACHE_TTL_CATEGORY = {
+    "income": "financial",
+    "balancesheet": "financial",
+    "cashflow": "financial",
+    "dividend": "financial",
+    "fina_indicator": "financial",
+    "fina_audit": "financial",
+    "fina_mainbz": "financial",
+    "top10_holders": "financial",
+    "repurchase": "financial",
+    "pledge_stat": "financial",
+    "hk_income": "financial",
+    "hk_balancesheet": "financial",
+    "hk_cashflow": "financial",
+    "hk_fina_indicator": "financial",
+    "us_income": "financial",
+    "us_balancesheet": "financial",
+    "us_cashflow": "financial",
+    "us_fina_indicator": "financial",
+    "weekly": "market",
+    "yc_cb": "market",
+}
+
+_CACHE_TTL_HOURS = {"financial": 168, "market": 24}
+
+
 def rate_limit(func):
-    """Decorator to enforce 0.5s delay between Tushare API calls."""
+    """Apply the configurable delay between Tushare API calls."""
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
-        time.sleep(0.5)
+        try:
+            delay = float(os.environ.get("TUSHARE_RATE_DELAY", "0.5"))
+        except ValueError:
+            delay = 0.5
+        if delay > 0:
+            time.sleep(delay)
         return func(*args, **kwargs)
     return wrapper
 
@@ -104,6 +139,8 @@ class TushareClient(
         self._store = {}  # {key: pd.DataFrame} for derived metrics computation
         self._yf_available = _yf_available
         self._cache_dir = os.path.join("output", ".collector_cache")
+        self._cache_enabled = True
+        self._ttl_cache = None
         self._fy_end_month: int = 12  # default: calendar year
         self._currency: str = "CNY"
         # Broker API support: route calls through custom URL + enable VIP endpoints
@@ -188,6 +225,14 @@ class TushareClient(
         # repeated historical runs deterministic without relying on file mtime.
         if os.path.exists(cache_file):
             df = pd.read_parquet(cache_file)
+            if "trade_date" in df.columns:
+                df = df.copy()
+                df["_normalized_sort_date"] = df["trade_date"].map(self._compact_date)
+                df = df[
+                    df["_normalized_sort_date"].notna()
+                    & (df["_normalized_sort_date"] <= self.as_of)
+                ].sort_values("_normalized_sort_date", ascending=False)
+                df = df.drop(columns="_normalized_sort_date").reset_index(drop=True)
             if ts_code:
                 df = df[df["ts_code"] == ts_code]
             return df
@@ -196,12 +241,53 @@ class TushareClient(
         df = self._safe_call("us_daily", limit=6000,
                              fields="ts_code,trade_date,open,high,low,close,"
                                     "vol,amount,pe,pb,total_mv")
+        if not df.empty and "trade_date" in df.columns:
+            df = df.copy()
+            df["_normalized_sort_date"] = df["trade_date"].map(self._compact_date)
+            df = df[
+                df["_normalized_sort_date"].notna()
+                & (df["_normalized_sort_date"] <= self.as_of)
+            ].sort_values("_normalized_sort_date", ascending=False)
+            df = df.drop(columns="_normalized_sort_date").reset_index(drop=True)
         if not df.empty:
             os.makedirs(self._cache_dir, exist_ok=True)
             df.to_parquet(cache_file, index=False)
 
         if ts_code and not df.empty:
             df = df[df["ts_code"] == ts_code]
+        return df
+
+    def _get_ttl_cache(self) -> ScreenerCache:
+        """Return the heavy-endpoint cache rooted below ``_cache_dir``."""
+        ttl_dir = os.path.join(self._cache_dir, "ttl")
+        if self._ttl_cache is None or self._ttl_cache.cache_dir != ttl_dir:
+            self._ttl_cache = ScreenerCache(ttl_dir)
+        return self._ttl_cache
+
+    def _ttl_cache_key(self, api_name: str, kwargs: dict) -> str:
+        """Build an endpoint key isolated by stock and point-in-time boundary."""
+        ts_code = kwargs.get("ts_code", "global")
+        signature = ";".join(
+            f"{name}={kwargs[name]!r}" for name in sorted(kwargs)
+        )
+        return f"collector_{ts_code}_{self.as_of}_{api_name}_{signature}"
+
+    def _cached_call(self, api_name: str, **kwargs) -> pd.DataFrame:
+        """Use the TTL cache for eligible endpoints, otherwise call live."""
+        category = _CACHE_TTL_CATEGORY.get(api_name)
+        if category is None or not self._cache_enabled:
+            return self._safe_call(api_name, **kwargs)
+
+        cache = self._get_ttl_cache()
+        key = self._ttl_cache_key(api_name, kwargs)
+        ttl_seconds = _CACHE_TTL_HOURS[category] * 3600
+        cached = cache.get(key, ttl_seconds)
+        if cached is not None:
+            return cached
+
+        df = self._safe_call(api_name, **kwargs)
+        if df is not None and not df.empty:
+            cache.put(key, df)
         return df
 
 
@@ -214,6 +300,10 @@ Examples:
   %(prog)s --code 600887.SH
   %(prog)s --code 600887 --output output/data_pack_market.md
   %(prog)s --code 00700.HK --extra-fields balancesheet.defer_tax_assets
+  %(prog)s --code 600887.SH --cache-refresh
+
+Financial endpoints are cached for 7 days; weekly prices and bond yields for
+24 hours. Use --cache-refresh after a new filing is released.
         """,
     )
     parser.add_argument(
@@ -245,6 +335,16 @@ Examples:
         "--refresh-market",
         action="store_true",
         help="Only refresh market-sensitive sections (§1/§2/§11/§14) in existing data pack",
+    )
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="Disable the TTL cache for heavy financial endpoints",
+    )
+    parser.add_argument(
+        "--cache-refresh",
+        action="store_true",
+        help="Invalidate this stock's financial TTL cache before collecting",
     )
     parser.add_argument(
         "--as-of",
@@ -281,12 +381,18 @@ def main():
         print(f"  Output: {args.output}")
         print(f"  As of: {args.as_of or 'today'}")
         print(f"  Snapshot: {'disabled' if args.no_snapshot else args.snapshot_dir or 'next to output'}")
+        print(f"  TTL cache: {'disabled' if args.no_cache else 'refresh' if args.cache_refresh else 'enabled'}")
         print(f"  Extra fields: {args.extra_fields or 'none'}")
         return
 
     # Get token
     token = args.token or get_token()
     client = TushareClient(token, as_of=args.as_of)
+    if args.no_cache:
+        client._cache_enabled = False
+    if args.cache_refresh:
+        client._get_ttl_cache().invalidate_prefix(f"collector_{ts_code}_")
+        print(f"TTL cache invalidated for {ts_code}")
     output_path = Path(args.output)
     snapshot_dir = Path(args.snapshot_dir) if args.snapshot_dir else output_path.parent / "data_snapshot"
 

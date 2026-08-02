@@ -38,6 +38,12 @@ class AssemblyMixin:
             self._compute_sotp_inputs,
             lambda: self._compute_factor4_ev_baseline(ts_code),
             lambda: self._compute_factor4_sensitivity(ts_code),
+            # §17.10 must run before §17.11/§17.13, which consume its M_rec.
+            # All four grids run after §17.5, which populates AA and λ inputs.
+            self._compute_payout_crosscheck,
+            lambda: self._compute_penetration_grid(ts_code),
+            self._compute_g_grid,
+            lambda: self._compute_revenue_sensitivity(ts_code),
         ]
 
         for method in sub_methods:

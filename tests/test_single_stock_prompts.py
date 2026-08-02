@@ -5,6 +5,8 @@ import sys
 import pytest
 
 from continue_single_stock import (
+    _consistency_argv,
+    _consistency_command,
     _validation_argv,
     _validation_command,
     build_step5_prompt,
@@ -30,6 +32,26 @@ def test_step5_prompt_requires_qualitative_shell_and_validation():
     assert "数据来源与免责声明" in prompt
     assert f"python {PROJECT_ROOT / 'scripts' / 'validate_reports.py'}" in prompt
     assert "--type qualitative" in prompt
+
+
+def test_step5_prompt_wires_budget_provenance_and_advisory_audit():
+    prompt = build_step5_prompt(PROJECT_ROOT, OUTPUT_DIR, QUALITATIVE)
+
+    for term in (
+        str(OUTPUT_DIR / "computed_metrics.md"),
+        "CM§1-CM§5",
+        "[src: CM§N]",
+        "数字溯源汇总",
+        "lead-with-numbers",
+        "只能作历史经验参考",
+        "cleanroom_audit.md",
+        "numeric_audit.md",
+        str(OUTPUT_DIR / "consistency_report.md"),
+        "退出码 1 表示发现提示性冲突",
+        "report_contract.json",
+        "validate_reports.py",
+    ):
+        assert term in prompt
 
 
 def test_step5_prompt_requires_sample_quality_first_screen_and_refutation():
@@ -519,6 +541,16 @@ def test_validation_command_preserves_paths_with_spaces():
     assert shlex.split(_validation_command(project_root, report, "qualitative")) == argv
 
 
+def test_consistency_command_preserves_paths_with_spaces():
+    project_root = Path("/repo with spaces")
+    report = Path("/tmp/output with spaces/report.md")
+    output = Path("/tmp/output with spaces/consistency.md")
+
+    argv = _consistency_argv(project_root, report, output)
+
+    assert shlex.split(_consistency_command(project_root, report, output)) == argv
+
+
 def test_step5_prompt_body_is_loaded_from_external_template():
     root = Path(__file__).resolve().parents[1]
     template = (root / "shared" / "qualitative" / "step5_prompt_template.md").read_text(encoding="utf-8")
@@ -563,6 +595,7 @@ def test_run_single_stock_script_mentions_three_prompt_files_and_directory_valid
     assert "step5_qualitative_prompt.md" in script
     assert "step7_turtle_prompt.md" in script
     assert "step8_valuation_prompt.md" in script
+    assert "prepare_computed_metrics(output_dir)" in script
     assert "_validation_command(project_root, output_dir)" in script
 
 
@@ -578,6 +611,9 @@ def test_readme_documents_single_stock_three_report_flow():
     assert "step7_turtle_prompt.md" in readme
     assert "step8_valuation_prompt.md" in readme
     assert "validate_reports.py" in readme
+    assert "quality_control.py" in readme
+    assert "report_consistency.py" in readme
+    assert "computed_metrics.md" in readme
     assert "--type qualitative" in readme
     assert "--type turtle" in readme
     assert "--type valuation" in readme

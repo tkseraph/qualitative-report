@@ -21,6 +21,20 @@ from .yfinance_integration import _yf
 class FinancialsMixin:
     """Mixin providing financial statement methods for TushareClient."""
 
+    def _newest_first_as_of(self, df: pd.DataFrame, date_column: str) -> pd.DataFrame:
+        """Return eligible rows newest-first without trusting API row order."""
+        if df.empty or date_column not in df.columns:
+            return df.copy()
+        ordered = df.copy()
+        ordered["_normalized_sort_date"] = ordered[date_column].map(self._compact_date)
+        ordered = ordered[
+            ordered["_normalized_sort_date"].notna()
+            & (ordered["_normalized_sort_date"] <= self.as_of)
+        ]
+        return ordered.sort_values(
+            "_normalized_sort_date", ascending=False
+        ).drop(columns="_normalized_sort_date").reset_index(drop=True)
+
     # --- Feature #14: Section 1 — Basic company info ---
 
     def get_basic_info(self, ts_code: str) -> str:
@@ -45,9 +59,7 @@ class FinancialsMixin:
                                 start_date=basic_start, end_date=self.as_of,
                                 fields="ts_code,trade_date,close,pe_ttm,pb,total_mv,circ_mv,total_share,float_share")
         if not daily.empty:
-            daily = daily[daily["trade_date"].astype(str) <= self.as_of].sort_values(
-                "trade_date", ascending=False
-            )
+            daily = self._newest_first_as_of(daily, "trade_date")
         val_rows = []
         if not daily.empty:
             self._store["basic_info"] = daily
@@ -89,8 +101,10 @@ class FinancialsMixin:
         # Get PE/PB/market_cap from hk_fina_indicator
         val_rows = []
         try:
-            fina = self._safe_call("hk_fina_indicator", ts_code=ts_code,
+            fina = self._cached_call("hk_fina_indicator", ts_code=ts_code,
                                    fields="ts_code,end_date,pe_ttm,pb_ttm,total_market_cap,hksk_market_cap")
+            if not fina.empty:
+                fina = self._newest_first_as_of(fina, "end_date")
             if not fina.empty:
                 self._store["basic_info"] = fina
                 d = fina.iloc[0]
@@ -152,6 +166,8 @@ class FinancialsMixin:
         try:
             daily = self._cached_us_daily(ts_code=api_code)
             if not daily.empty:
+                daily = self._newest_first_as_of(daily, "trade_date")
+            if not daily.empty:
                 self._store["basic_info"] = daily
                 d = daily.iloc[0]
                 val_rows = [
@@ -195,6 +211,7 @@ class FinancialsMixin:
                              fields="ts_code,trade_date,open,high,low,close,vol,amount")
         lines = [format_header(2, "2. 市场行情"), ""]
 
+        df = self._newest_first_as_of(df, "trade_date")
         if df.empty:
             lines.append("数据缺失\n")
             return "\n".join(lines)
@@ -250,6 +267,9 @@ class FinancialsMixin:
                                  fields="ts_code,trade_date,open,high,low,close,vol,amount")
         except RuntimeError:
             pass
+
+        if not df.empty:
+            df = self._newest_first_as_of(df, "trade_date")
 
         if not df.empty:
             latest_close = df.iloc[0]["close"]
@@ -308,7 +328,7 @@ class FinancialsMixin:
         if self._is_us(ts_code):
             return self._get_income_us(ts_code)
 
-        df = self._safe_call("income", ts_code=ts_code,
+        df = self._cached_call("income", ts_code=ts_code,
                              report_type=report_type,
                              fields="ts_code,ann_date,f_ann_date,end_date,report_type,update_flag,"
                                     "revenue,oper_cost,biz_tax_surchg,"
@@ -395,7 +415,7 @@ class FinancialsMixin:
 
     def _get_income_hk(self, ts_code: str) -> str:
         """Section 3 (HK): Income statement via hk_income line-item pivot."""
-        df = self._safe_call("hk_income", ts_code=ts_code,
+        df = self._cached_call("hk_income", ts_code=ts_code,
                              fields="ts_code,end_date,ind_name,ind_value")
         lines = [format_header(2, "3. 合并利润表"), ""]
 
@@ -458,7 +478,7 @@ class FinancialsMixin:
     def _get_income_us(self, ts_code: str) -> str:
         """Section 3 (US): Income statement via us_income line-item pivot."""
         api_code = self._us_api_code(ts_code)
-        df = self._safe_call("us_income", ts_code=api_code,
+        df = self._cached_call("us_income", ts_code=api_code,
                              fields="ts_code,end_date,ind_name,ind_value")
         lines = [format_header(2, "3. 合并利润表"), ""]
 
@@ -538,7 +558,7 @@ class FinancialsMixin:
         if self._is_us(ts_code):
             return self._get_balance_sheet_us(ts_code)
 
-        df = self._safe_call("balancesheet", ts_code=ts_code,
+        df = self._cached_call("balancesheet", ts_code=ts_code,
                              report_type=report_type,
                              fields="ts_code,ann_date,f_ann_date,end_date,report_type,update_flag,"
                                     "money_cap,trad_asset,notes_receiv,"
@@ -548,8 +568,10 @@ class FinancialsMixin:
                                     "intang_assets,goodwill,total_assets,"
                                     "st_borr,notes_payable,acct_payable,"
                                     "contract_liab,adv_receipts,"
+                                    "payroll_payable,taxes_payable,oth_payable,"
                                     "non_cur_liab_due_1y,oth_cur_liab,"
                                     "total_cur_liab,lt_borr,bond_payable,"
+                                    "lt_payable,lease_liab,provisions,defer_inc_non_cur_liab,"
                                     "total_liab,defer_tax_assets,defer_tax_liab,"
                                     "total_hldr_eqy_exc_min_int,minority_int,total_share")
         section_label = "4P. 母公司资产负债表" if report_type == "6" else "4. 合并资产负债表"
@@ -590,11 +612,18 @@ class FinancialsMixin:
             ("应付账款", "acct_payable"),
             ("合同负债", "contract_liab"),
             ("预收款项", "adv_receipts"),
+            ("应付职工薪酬", "payroll_payable"),
+            ("应交税费", "taxes_payable"),
+            ("其他应付款", "oth_payable"),
             ("一年内到期非流动负债", "non_cur_liab_due_1y"),
             ("其他流动负债", "oth_cur_liab"),
             ("流动负债合计", "total_cur_liab"),
             ("长期借款", "lt_borr"),
             ("应付债券", "bond_payable"),
+            ("长期应付款", "lt_payable"),
+            ("租赁负债", "lease_liab"),
+            ("预计负债", "provisions"),
+            ("递延收益", "defer_inc_non_cur_liab"),
             ("总负债", "total_liab"),
             ("递延所得税资产", "defer_tax_assets"),
             ("递延所得税负债", "defer_tax_liab"),
@@ -633,7 +662,7 @@ class FinancialsMixin:
 
     def _get_balance_sheet_hk(self, ts_code: str) -> str:
         """Section 4 (HK): Balance sheet via hk_balancesheet line-item pivot."""
-        df = self._safe_call("hk_balancesheet", ts_code=ts_code,
+        df = self._cached_call("hk_balancesheet", ts_code=ts_code,
                              fields="ts_code,end_date,ind_name,ind_value")
         lines = [format_header(2, "4. 合并资产负债表"), ""]
 
@@ -695,7 +724,7 @@ class FinancialsMixin:
     def _get_balance_sheet_us(self, ts_code: str) -> str:
         """Section 4 (US): Balance sheet via us_balancesheet line-item pivot."""
         api_code = self._us_api_code(ts_code)
-        df = self._safe_call("us_balancesheet", ts_code=api_code,
+        df = self._cached_call("us_balancesheet", ts_code=api_code,
                              fields="ts_code,end_date,ind_name,ind_value")
         lines = [format_header(2, "4. 合并资产负债表"), ""]
 
@@ -772,7 +801,7 @@ class FinancialsMixin:
         if self._is_us(ts_code):
             return self._get_cashflow_us(ts_code)
 
-        df = self._safe_call("cashflow", ts_code=ts_code,
+        df = self._cached_call("cashflow", ts_code=ts_code,
                              report_type="1",
                              fields="ts_code,ann_date,f_ann_date,end_date,report_type,update_flag,"
                                     "n_cashflow_act,n_cashflow_inv_act,"
@@ -855,7 +884,7 @@ class FinancialsMixin:
 
     def _get_cashflow_hk(self, ts_code: str) -> str:
         """Section 5 (HK): Cash flow via hk_cashflow line-item pivot."""
-        df = self._safe_call("hk_cashflow", ts_code=ts_code,
+        df = self._cached_call("hk_cashflow", ts_code=ts_code,
                              fields="ts_code,end_date,ind_name,ind_value")
         lines = [format_header(2, "5. 现金流量表"), ""]
 
@@ -929,7 +958,7 @@ class FinancialsMixin:
     def _get_cashflow_us(self, ts_code: str) -> str:
         """Section 5 (US): Cash flow via us_cashflow line-item pivot."""
         api_code = self._us_api_code(ts_code)
-        df = self._safe_call("us_cashflow", ts_code=api_code,
+        df = self._cached_call("us_cashflow", ts_code=api_code,
                              fields="ts_code,end_date,ind_name,ind_value")
         lines = [format_header(2, "5. 现金流量表"), ""]
 
@@ -1007,7 +1036,7 @@ class FinancialsMixin:
         if self._is_us(ts_code):
             return self._get_dividends_us(ts_code)
 
-        df = self._safe_call("dividend", ts_code=ts_code,
+        df = self._cached_call("dividend", ts_code=ts_code,
                              fields="ts_code,end_date,ann_date,div_proc,"
                                     "stk_div,cash_div_tax,record_date,"
                                     "ex_date,base_share")
@@ -1078,7 +1107,7 @@ class FinancialsMixin:
         """Section 6 (HK): Dividend history from hk_fina_indicator + yfinance cross-validation."""
         lines = [format_header(2, "6. 分红历史"), ""]
         try:
-            df = self._safe_call("hk_fina_indicator", ts_code=ts_code,
+            df = self._cached_call("hk_fina_indicator", ts_code=ts_code,
                                  fields="ts_code,end_date,dps_hkd,divi_ratio")
         except RuntimeError:
             lines.append("数据缺失 (接口可能无权限)\n")
@@ -1222,7 +1251,7 @@ class FinancialsMixin:
         today = self.as_of
         ten_years_ago = (self._as_of_timestamp() - pd.DateOffset(years=10)).strftime("%Y%m%d")
 
-        df = self._safe_call("weekly", ts_code=ts_code,
+        df = self._cached_call("weekly", ts_code=ts_code,
                              start_date=ten_years_ago, end_date=today,
                              fields="ts_code,trade_date,open,high,low,close,vol,amount")
         lines = [format_header(2, "11. 十年周线行情"), ""]
@@ -1435,7 +1464,7 @@ class FinancialsMixin:
         if self._is_us(ts_code):
             return self._get_fina_indicators_us(ts_code)
 
-        df = self._safe_call("fina_indicator", ts_code=ts_code,
+        df = self._cached_call("fina_indicator", ts_code=ts_code,
                              fields="ts_code,ann_date,end_date,roe,roe_waa,"
                                     "grossprofit_margin,netprofit_margin,"
                                     "rd_exp,current_ratio,quick_ratio,"
@@ -1520,7 +1549,7 @@ class FinancialsMixin:
 
     def _get_fina_indicators_hk(self, ts_code: str) -> str:
         """Section 12 (HK): Financial indicators from hk_fina_indicator (structured)."""
-        df = self._safe_call("hk_fina_indicator", ts_code=ts_code,
+        df = self._cached_call("hk_fina_indicator", ts_code=ts_code,
                              fields="ts_code,end_date,roe_avg,gross_profit_ratio,"
                                     "net_profit_ratio,debt_asset_ratio,"
                                     "pe_ttm,pb_ttm,operate_income_yoy,holder_profit_yoy,"
@@ -1571,7 +1600,7 @@ class FinancialsMixin:
     def _get_fina_indicators_us(self, ts_code: str) -> str:
         """Section 12 (US): Financial indicators from us_fina_indicator (structured)."""
         api_code = self._us_api_code(ts_code)
-        df = self._safe_call("us_fina_indicator", ts_code=api_code,
+        df = self._cached_call("us_fina_indicator", ts_code=api_code,
                              fields="ts_code,end_date,roe_avg,gross_profit_ratio,"
                                     "net_profit_ratio,debt_asset_ratio,"
                                     "pe_ttm,pb_ttm,operate_income_yoy,holder_profit_yoy,"

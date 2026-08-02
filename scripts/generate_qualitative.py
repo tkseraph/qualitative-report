@@ -10,9 +10,21 @@ import sys
 from pathlib import Path
 
 if __package__:
-    from .continue_single_stock import _validation_argv, build_step5_prompt, detect_code_prefix
+    from .continue_single_stock import (
+        _consistency_argv,
+        _validation_argv,
+        build_step5_prompt,
+        detect_code_prefix,
+        prepare_computed_metrics,
+    )
 else:
-    from continue_single_stock import _validation_argv, build_step5_prompt, detect_code_prefix
+    from continue_single_stock import (
+        _consistency_argv,
+        _validation_argv,
+        build_step5_prompt,
+        detect_code_prefix,
+        prepare_computed_metrics,
+    )
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -64,15 +76,23 @@ def main(argv: list[str] | None = None) -> int:
     target_output = output_dir / f"{code_prefix}_qualitative_report.md"
     prompt_path = output_dir / "step5_qualitative_prompt.md"
     log_path = output_dir / "generate_qualitative.log"
+    computed_metrics_path = prepare_computed_metrics(output_dir)
     prompt = build_step5_prompt(project_root, output_dir, target_output)
     prompt_path.write_text(prompt + "\n", encoding="utf-8")
 
     command = _model_command(prompt_path)
+    consistency_path = output_dir / "consistency_report.md"
+    consistency_argv = _consistency_argv(project_root, target_output, consistency_path)
     validation_argv = _validation_argv(project_root, target_output, "qualitative")
 
     print("[generate] stage=step5 qualitative")
     print(f"[generate] prompt file: {prompt_path}")
     print(f"[generate] target output: {target_output}")
+    if computed_metrics_path:
+        print(f"[generate] computed metrics: {computed_metrics_path}")
+    else:
+        print("[generate] computed metrics unavailable; prompt uses degraded arithmetic rules")
+    print(f"[generate] consistency command: {_format_command(consistency_argv)}")
     print(f"[generate] validation command: {_format_command(validation_argv)}")
     if not args.run_nested_claude:
         print("[generate] prompt-only mode: wrote the chain prompt and does not call nested claude -p")
@@ -92,6 +112,14 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[generate] failed: target output was not created: {target_output}")
         print(f"[generate] inspect log file: {log_path}")
         return 1
+
+    consistency = subprocess.run(consistency_argv, text=True, check=False)
+    print(f"[generate] consistency audit exit code: {consistency.returncode}")
+    if consistency.returncode == 2:
+        print(f"[generate] consistency audit failed: inspect {consistency_path}")
+        return 2
+    if consistency.returncode == 1:
+        print(f"[generate] advisory numeric conflicts found: inspect {consistency_path}")
 
     validation = subprocess.run(validation_argv, text=True, check=False)
     print(f"[generate] validation exit code: {validation.returncode}")

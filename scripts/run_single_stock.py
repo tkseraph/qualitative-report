@@ -6,6 +6,7 @@ Runs the deterministic parts of the single-stock flow:
 - normalize output directory
 - copy annual report PDF into output directory
 - run tushare_collector.py
+- generate computed_metrics.md
 - run pdf_preprocessor.py
 - run valuation_engine.py
 
@@ -30,6 +31,7 @@ if __package__:
         build_step5_prompt,
         build_step7_prompt,
         build_step8_prompt,
+        prepare_computed_metrics,
     )
 else:
     from config import validate_stock_code
@@ -38,6 +40,7 @@ else:
         build_step5_prompt,
         build_step7_prompt,
         build_step8_prompt,
+        prepare_computed_metrics,
     )
 
 
@@ -102,6 +105,12 @@ def main() -> None:
         "--as-of", as_of,
         "--snapshot-dir", str(snapshot_dir),
     ], cwd=project_root)
+
+    computed_metrics_path = prepare_computed_metrics(output_dir)
+    if computed_metrics_path:
+        print(f"[runner] computed metrics generated: {computed_metrics_path}")
+    else:
+        print("[runner] WARNING: computed metrics unavailable; Step 5 will use degraded arithmetic rules")
 
     run_cmd([
         python_bin,

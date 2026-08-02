@@ -1671,6 +1671,16 @@ def main():
         default=None,
         help="Collected snapshot directory (default: <output-dir>/data_snapshot)",
     )
+    parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="Disable the financial-endpoint TTL cache when live collection is needed",
+    )
+    parser.add_argument(
+        "--cache-refresh",
+        action="store_true",
+        help="Invalidate financial TTL data and rebuild the local snapshot from live APIs",
+    )
     args = parser.parse_args()
 
     ts_code = validate_stock_code(args.code)
@@ -1683,13 +1693,23 @@ def main():
         from data_snapshot import load_snapshot, save_snapshot, snapshot_exists
 
     snapshot_dir = args.snapshot_dir or os.path.join(args.output_dir, "data_snapshot")
+    use_snapshot = snapshot_exists(snapshot_dir) and not args.cache_refresh
     token = (
         os.environ.get("TUSHARE_TOKEN") or "snapshot-local"
-        if snapshot_exists(snapshot_dir)
+        if use_snapshot
         else get_token()
     )
     client = TushareClient(token, as_of=args.as_of)
-    if snapshot_exists(snapshot_dir):
+    if args.no_cache:
+        client._cache_enabled = False
+    if args.cache_refresh:
+        client._get_ttl_cache().invalidate_prefix(f"collector_{ts_code}_")
+        print(
+            f"[valuation_engine] 已清理 {ts_code} 的财务 TTL 缓存，重新采集快照",
+            file=sys.stderr,
+        )
+
+    if use_snapshot:
         store, manifest = load_snapshot(snapshot_dir)
         if manifest["ts_code"] != ts_code:
             raise SystemExit(

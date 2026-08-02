@@ -143,6 +143,499 @@ class DerivedMetricsMixin:
         lines.append(table)
         return "\n".join(lines)
 
+    # --- Phase 3: §17.10-§17.13 deterministic grids ---
+
+    def _get_mktcap_shares(self, ts_code: str):
+        """Return raw market cap, shares and close using §17.9 conventions."""
+        basic_df = self._store.get("basic_info")
+        if basic_df is None or basic_df.empty:
+            return None
+
+        basic = basic_df.iloc[0]
+        close = self._safe_float(basic.get("close"))
+        if close is None or close <= 0:
+            return None
+
+        if self._is_us(ts_code):
+            market_cap = self._safe_float(basic.get("total_mv"))
+            if market_cap is None or market_cap <= 0:
+                return None
+            shares = market_cap / close
+        elif self._is_hk(ts_code):
+            market_cap_mm = self._safe_float(basic.get("total_market_cap"))
+            if market_cap_mm is None or market_cap_mm <= 0:
+                return None
+            market_cap = market_cap_mm * 1e6
+            shares = market_cap / close
+        else:
+            market_cap_wan = self._safe_float(basic.get("total_mv"))
+            shares_wan = self._safe_float(basic.get("total_share"))
+            if (
+                market_cap_wan is None
+                or market_cap_wan <= 0
+                or shares_wan is None
+                or shares_wan <= 0
+            ):
+                return None
+            market_cap = market_cap_wan * 10000
+            shares = shares_wan * 10000
+
+        return market_cap, shares, close
+
+    def _get_rf_ii(self, ts_code: str):
+        """Return (risk-free rate, hurdle II), matching §17.2/§17.9."""
+        rf_df = self._store.get("risk_free_rate")
+        if rf_df is None or rf_df.empty:
+            return None, None
+        rf = self._safe_float(rf_df.iloc[0].get("yield"))
+        if rf is None:
+            return None, None
+        if self._is_hk(ts_code):
+            hurdle = max(5.0, rf + 3.0)
+        elif self._is_us(ts_code):
+            hurdle = max(4.0, rf + 2.0)
+        else:
+            hurdle = max(3.5, rf + 2.0)
+        return rf, hurdle
+
+    def _tax_scenarios(self, ts_code: str):
+        """Return tax scenarios and the default from shared_tables.md."""
+        if self._is_hk(ts_code):
+            return [("H股直接", 28.0), ("港股通", 20.0), ("红筹/开曼", 20.0)], 20.0
+        if self._is_us(ts_code):
+            return [("直接持有", 30.0), ("W-8BEN", 10.0)], 10.0
+        return [("持有>1年", 0.0), ("持有1月-1年", 10.0), ("持有<1月", 20.0)], 0.0
+
+    def _unique_tax_rates(self, ts_code: str):
+        """Deduplicate scenario rates while preserving their display order."""
+        scenarios, default_rate = self._tax_scenarios(ts_code)
+        rates = []
+        for _, rate in scenarios:
+            if rate not in rates:
+                rates.append(rate)
+        return rates, default_rate
+
+    @staticmethod
+    def _mean_first3(lookup: dict, years: list[str]) -> float | None:
+        values = [lookup[year] for year in years[:3] if year in lookup]
+        return sum(values) / len(values) if values else None
+
+    def _compute_payout_crosscheck(self) -> str | None:
+        """Compute §17.10 payout M using three independent data paths."""
+        income_df = self._get_annual_df("income")
+        if income_df.empty:
+            return None
+
+        years = [str(row["end_date"])[:4] for _, row in income_df.iterrows()]
+        net_profit_by_year = {}
+        eps_by_year = {}
+        for _, row in income_df.iterrows():
+            year = str(row["end_date"])[:4]
+            net_profit_by_year[year] = self._safe_float(row.get("n_income_attr_p"))
+            eps_by_year[year] = self._safe_float(row.get("basic_eps"))
+
+        # Method 1: dividend declared for the reporting year / reporting-year EPS.
+        method1_by_year = {}
+        dps_by_year = {}
+        currency_note = False
+        dividends = self._store.get("dividends")
+        dividends_hk = self._store.get("dividends_hk")
+        if dividends is not None and not dividends.empty:
+            for _, row in dividends.iterrows():
+                year = str(row.get("end_date", ""))[:4]
+                dps = self._safe_float(row.get("cash_div_tax"))
+                if year and dps is not None:
+                    dps_by_year[year] = dps_by_year.get(year, 0.0) + dps
+        elif dividends_hk is not None and not dividends_hk.empty:
+            currency_note = True
+            for _, row in dividends_hk.iterrows():
+                year = str(row.get("end_date", ""))[:4]
+                dps = self._safe_float(row.get("dps_hkd"))
+                if year and dps is not None:
+                    dps_by_year[year] = dps_by_year.get(year, 0.0) + dps
+
+        for year, dps in dps_by_year.items():
+            eps = eps_by_year.get(year)
+            if eps is not None and eps > 0:
+                method1_by_year[year] = dps / eps * 100
+
+        # Method 2: actual distribution cash outflow / attributable profit.
+        method2_by_year = {}
+        cashflow_df = self._get_annual_df("cashflow")
+        for _, row in cashflow_df.iterrows():
+            year = str(row["end_date"])[:4]
+            distribution = self._outflow_amount(row.get("c_pay_dist_dpcp_int_exp"))
+            net_profit = net_profit_by_year.get(year)
+            if distribution is not None and net_profit is not None and net_profit > 0:
+                method2_by_year[year] = distribution / net_profit * 100
+
+        # Method 3 deliberately keeps the local actual-payment-year convention.
+        method3_by_year = self._get_payout_by_year()
+        if not method1_by_year and not method2_by_year and not method3_by_year:
+            return None
+
+        m1 = self._mean_first3(method1_by_year, years)
+        m2 = self._mean_first3(method2_by_year, years)
+        m3 = self._mean_first3(method3_by_year, years)
+
+        available = [(label, value) for label, value in (("法1", m1), ("法2", m2), ("法3", m3))
+                     if value is not None]
+        max_deviation = 0.0
+        max_pair = None
+        for index, (label_a, value_a) in enumerate(available):
+            for label_b, value_b in available[index + 1:]:
+                denominator = (abs(value_a) + abs(value_b)) / 2
+                if denominator <= 0:
+                    continue
+                deviation = abs(value_a - value_b) / denominator
+                if deviation > max_deviation:
+                    max_deviation = deviation
+                    max_pair = (label_a, label_b)
+
+        dps_values = [dps_by_year[year] for year in years if year in dps_by_year]
+        identical_dps = (
+            dividends is not None
+            and not dividends.empty
+            and len(dps_values) >= 3
+            and len({round(value, 6) for value in dps_values}) == 1
+        )
+
+        warnings = []
+        if max_deviation > 0.15 and max_pair is not None:
+            warnings.append(
+                f"可用方法3年均值两两相对偏差最大 {max_deviation * 100:.1f}%"
+                f"（{max_pair[0]} vs {max_pair[1]}）> 15%"
+            )
+        if identical_dps:
+            warnings.append("A股逐年 DPS 在 ≥3 年完全相同，高度疑似 Tushare 数据填充错误")
+        if currency_note:
+            warnings.append("港股 DPS(HKD) 与 EPS 可能币种不一致，法1 未做汇率换算，仅供参考")
+
+        if m2 is not None and (max_deviation > 0.15 or identical_dps):
+            recommended_label = "法2"
+            reason = "；".join(warnings[:2]) + "，采用法2（现金流最可靠）"
+        elif m3 is not None:
+            recommended_label = "法3"
+            reason = "可用方法偏差 ≤ 15%，采用法3（§17.1 实际派息年份口径）"
+        elif m2 is not None:
+            recommended_label = "法2"
+            reason = "法3 不可用，回退至法2（现金流口径）"
+        else:
+            recommended_label = "法1"
+            reason = "仅法1可用"
+
+        values_by_label = {"法1": m1, "法2": m2, "法3": m3}
+        recommended = values_by_label[recommended_label]
+        self._store["payout_crosscheck"] = {
+            "m1": m1,
+            "m2": m2,
+            "m3": m3,
+            "m_rec": recommended,
+            "m_rec_label": recommended_label,
+            "m_rec_reason": reason,
+            "warnings": warnings,
+            "by_year": {
+                "m1": method1_by_year,
+                "m2": method2_by_year,
+                "m3": method3_by_year,
+            },
+        }
+
+        def _format_percent(value):
+            return f"{value:.2f}%" if value is not None else "—"
+
+        lines = [format_header(3, "17.10 支付率 M 三重校验"), ""]
+        lines.append(
+            "> 法2 含利息及少数股东股利，系支付率上界；法3 为 §17.1 实际派息年份口径。"
+            "推荐规则已在 Python 内裁定，LLM 直接引用 M_rec。"
+        )
+        lines.append("")
+        headers = ["方法"] + years + ["3年均值"]
+        rows = [
+            ["法1 §6 DPS/EPS"] + [_format_percent(method1_by_year.get(y)) for y in years]
+            + [_format_percent(m1)],
+            ["法2 §5 分配现金/归母"] + [_format_percent(method2_by_year.get(y)) for y in years]
+            + [_format_percent(m2)],
+            ["法3 §17.1 口径"] + [_format_percent(method3_by_year.get(y)) for y in years]
+            + [_format_percent(m3)],
+        ]
+        lines.append(format_table(headers, rows, alignments=["l"] + ["r"] * (len(years) + 1)))
+        lines.extend(["", f"- **M_rec = {_format_percent(recommended)}（{recommended_label}）** — {reason}"])
+        for warning in warnings:
+            lines.append(f"  ⚠️ {warning}")
+        return "\n".join(lines)
+
+    def _compute_penetration_grid(self, ts_code: str) -> str | None:
+        """Compute §17.11 after-tax R/GG lookup grids."""
+        factor3 = self._store.get("factor3_sensitivity")
+        income_df = self._get_annual_df("income")
+        if not factor3 or income_df.empty:
+            return None
+
+        base_profit = self._safe_float(income_df.iloc[0].get("n_income_attr_p"))
+        market = self._get_mktcap_shares(ts_code)
+        _, hurdle = self._get_rf_ii(ts_code)
+        if base_profit is None or market is None or hurdle is None:
+            return None
+        market_cap, _shares, close = market
+
+        payout = self._store.get("payout_crosscheck")
+        candidates = []
+        recommended_label = None
+        if payout:
+            for label, key in (("法1", "m1"), ("法2", "m2"), ("法3", "m3")):
+                value = payout.get(key)
+                if value is not None:
+                    candidates.append((label, value))
+            recommended_label = payout.get("m_rec_label")
+        else:
+            years = [str(row["end_date"])[:4] for _, row in income_df.iterrows()]
+            fallback = self._mean_first3(self._get_payout_by_year(), years)
+            if fallback is not None:
+                candidates.append(("法3", fallback))
+                recommended_label = "法3"
+        if not candidates:
+            return None
+        if recommended_label not in {label for label, _ in candidates}:
+            recommended_label = candidates[0][0]
+
+        candidates.sort(key=lambda item: item[0] != recommended_label)
+        unique_candidates = []
+        for label, value in candidates:
+            if not any(abs(value - known) < 0.5 for _, known in unique_candidates):
+                unique_candidates.append((label, value))
+
+        aa_variants = []
+        for label, value in (("AA_2y", factor3.get("aa_2y")),
+                             ("AA_all", factor3.get("aa_all")),
+                             ("AA_excl", factor3.get("aa_excl"))):
+            if value is None:
+                continue
+            tolerance = max(1.0, abs(value) * 1e-9)
+            if not any(abs(value - known) <= tolerance for _, known in aa_variants):
+                aa_variants.append((label, value))
+        if not aa_variants:
+            return None
+
+        tax_rates, default_tax = self._unique_tax_rates(ts_code)
+        market_cap_mm = market_cap / 1e6
+        buyback_increment = 100 / market_cap_mm * 100 if market_cap_mm > 0 else 0.0
+
+        def _tax_label(rate):
+            suffix = "（默认）" if rate == default_tax else ""
+            return f"Q={rate:g}%{suffix}"
+
+        lines = [format_header(3, "17.11 穿透回报率网格（税后）"), ""]
+        lines.append(
+            f"> 基准值 C（最新年归母净利润）= {format_number(base_profit)} {self._unit_label()}，"
+            f"市值 = {format_number(market_cap)} {self._unit_label()}，"
+            f"当前股价 = {close:.2f} {self._price_unit()}，门槛 II = {hurdle:.2f}%，O = 0（默认）。"
+        )
+        lines.append(
+            f"> O 加法修正：每确认 100 {self._unit_label()} 年均注销型回购，"
+            f"穿透回报率 +{buyback_increment:.4f} pct（= 100/市值×100）。"
+        )
+        lines.extend(["", "#### 表A：粗算穿透回报率 R（基准值 = C 归母净利润）", ""])
+
+        headers_a = ["支付率 M"] + [_tax_label(rate) for rate in tax_rates]
+        rows_a = []
+        for label, payout_rate in unique_candidates:
+            star = " ★" if label == recommended_label else ""
+            row = [f"{label} {payout_rate:.2f}%{star}"]
+            for tax in tax_rates:
+                result = base_profit * payout_rate / 100 * (1 - tax / 100) / market_cap * 100
+                row.append(f"{result:.2f}%")
+            rows_a.append(row)
+        lines.append(format_table(headers_a, rows_a, alignments=["l"] + ["r"] * len(tax_rates)))
+        lines.extend(["", "#### 表B：精算穿透回报率 GG（基准值 = AA 报告口径权益 FCF）", ""])
+
+        headers_b = (
+            ["AA×M"]
+            + [f"GG {_tax_label(rate)}" for rate in tax_rates]
+            + ["HH(默认Q) pct", "GG−II(默认Q) pct", f"目标买入价（{self._price_unit()}）"]
+        )
+        rows_b = []
+        for aa_label, aa in aa_variants:
+            for payout_label, payout_rate in unique_candidates:
+                star = " ★" if payout_label == recommended_label else ""
+                row = [f"{aa_label}×{payout_label}{star}"]
+                gg_default = None
+                for tax in tax_rates:
+                    gg = aa * payout_rate / 100 * (1 - tax / 100) / market_cap * 100
+                    row.append(f"{gg:.2f}%")
+                    if tax == default_tax:
+                        gg_default = gg
+                if gg_default is None:
+                    continue
+                rough_default = (
+                    base_profit * payout_rate / 100 * (1 - default_tax / 100) / market_cap * 100
+                )
+                row.extend([
+                    f"{rough_default - gg_default:+.2f}",
+                    f"{gg_default - hurdle:+.2f}",
+                    f"{close * gg_default / hurdle:.2f}",
+                ])
+                rows_b.append(row)
+        lines.append(format_table(headers_b, rows_b,
+                                  alignments=["l"] + ["r"] * (len(tax_rates) + 3)))
+        lines.extend([
+            "",
+            "> 目标买入价 = 当前股价 × GG / II（默认 Q）。★ 为推荐 M。AA 沿用 §17.5 的报告口径权益 FCF。",
+            "> 脚注：§17.9 的穿透回报率为**税前**口径（快速敏感性）；含税结果以本节 §17.11 为准。",
+        ])
+        return "\n".join(lines)
+
+    def _compute_g_grid(self, ts_code: str = "") -> str | None:
+        """Compute §17.12 G-to-maintenance-Capex lookup grid."""
+        income_df = self._get_annual_df("income")
+        cashflow_df = self._get_annual_df("cashflow")
+        if income_df.empty or cashflow_df.empty:
+            return None
+
+        base_profit = self._safe_float(income_df.iloc[0].get("n_income_attr_p"))
+        depreciation = depreciation_and_amortization(cashflow_df.iloc[0])
+        if base_profit is None or depreciation is None or depreciation <= 0:
+            return None
+
+        capex_da_values = []
+        for _, row in cashflow_df.iterrows():
+            row_da = depreciation_and_amortization(row)
+            capex = self._outflow_amount(row.get("c_pay_acq_const_fiolta"))
+            if row_da is not None and row_da > 0 and capex is not None:
+                capex_da_values.append(capex / row_da)
+        f_reference = statistics.median(capex_da_values) if capex_da_values else None
+
+        def _band(coefficient):
+            if coefficient <= 0.95:
+                return "轻"
+            if coefficient <= 1.15:
+                return "轻中"
+            if coefficient <= 1.35:
+                return "中"
+            if coefficient <= 1.55:
+                return "中重"
+            return "重"
+
+        lines = [format_header(3, "17.12 G 系数网格（维持性 Capex）"), ""]
+        f_text = f"{f_reference:.2f}" if f_reference is not None else "—"
+        lines.append(
+            f"> C 归母净利润 = {format_number(base_profit)} {self._unit_label()}，"
+            f"D 折旧摊销 = {format_number(depreciation)} {self._unit_label()}，"
+            f"F（Capex/D&A 5年中位数）= {f_text}"
+        )
+        lines.extend([
+            "> OE = C + D − H = C + D×(1−G)。**LLM 仅选行，禁止自算。**",
+            "",
+        ])
+        headers = [
+            "G",
+            f"维持性Capex H = D×G（{self._unit_label()}）",
+            f"Owner Earnings OE（{self._unit_label()}）",
+            "档位",
+        ]
+        rows = []
+        for index in range(12):
+            coefficient = round(0.7 + 0.1 * index, 1)
+            maintenance_capex = depreciation * coefficient
+            owner_earnings = base_profit + depreciation - maintenance_capex
+            rows.append([
+                f"{coefficient:.1f}",
+                format_number(maintenance_capex),
+                format_number(owner_earnings),
+                _band(coefficient),
+            ])
+        lines.append(format_table(headers, rows, alignments=["r", "r", "r", "c"]))
+        return "\n".join(lines)
+
+    def _compute_revenue_sensitivity(self, ts_code: str) -> str | None:
+        """Compute §17.13 revenue sensitivity using the default AA/M/Q combo."""
+        factor3 = self._store.get("factor3_sensitivity")
+        income_df = self._get_annual_df("income")
+        if not factor3 or income_df.empty:
+            return None
+
+        aa_default = factor3.get("aa_selected")
+        revenue = self._safe_float(income_df.iloc[0].get("revenue"))
+        market = self._get_mktcap_shares(ts_code)
+        _, hurdle = self._get_rf_ii(ts_code)
+        if aa_default is None or revenue is None or revenue <= 0 or market is None or hurdle is None:
+            return None
+        market_cap, _shares, _close = market
+
+        payout = self._store.get("payout_crosscheck")
+        recommended = payout.get("m_rec") if payout else None
+        if recommended is None:
+            years = [str(row["end_date"])[:4] for _, row in income_df.iterrows()]
+            recommended = self._mean_first3(self._get_payout_by_year(), years)
+        if recommended is None:
+            return None
+
+        _, default_tax = self._unique_tax_rates(ts_code)
+        after_tax_payout = recommended / 100 * (1 - default_tax / 100)
+        coefficient = factor3.get("lambda_median")
+        reliability = factor3.get("lambda_reliability")
+        coefficient_warnings = factor3.get("lambda_warnings") or []
+
+        lines = [format_header(3, "17.13 收入敏感性（λ 外推）"), ""]
+        lines.append(
+            f"> AA_default = {format_number(aa_default)} {self._unit_label()}，"
+            f"S 最新年收入 = {format_number(revenue)} {self._unit_label()}，"
+            f"M_rec = {recommended:.2f}%，默认 Q = {default_tax:g}%，"
+            f"m′ = M_rec×(1−Q) = {after_tax_payout * 100:.2f}%，II = {hurdle:.2f}%。"
+        )
+        lines.extend([
+            "> AA_default 沿用 §17.5 报告口径权益 FCF；本表基于**默认组合**（M_rec × 默认Q × AA_default）计算；"
+            "其他 M/Q 选择按 M×(1−Q) 比例缩放 GG。",
+            "",
+        ])
+
+        degraded = coefficient is None or abs(coefficient) < 1e-9 or after_tax_payout <= 0
+        headers = ["收入情景", f"结余（{self._unit_label()}）", "精算回报率 GG", "vs 门槛 pct"]
+        if degraded:
+            if coefficient is None:
+                reason = "λ 缺失"
+            elif abs(coefficient) < 1e-9:
+                reason = "λ≈0（收入变动不传导至结余）"
+            else:
+                reason = "m′≤0"
+            lines.append(f"- ⚠️ 降级：{reason}，无法外推收入敏感性。")
+            rows = [[f"{scenario:.1f}×", "—", "—", "—"] for scenario in (1.0, 0.9, 0.8, 0.7)]
+            lines.append(format_table(headers, rows, alignments=["l", "r", "r", "r"]))
+            lines.append("- 临界收入倍数 k* = —")
+            return "\n".join(lines)
+
+        lines.append(f"- 经营杠杆 λ = {coefficient:.4f}（可靠性：{reliability or '—'}）")
+        for warning in coefficient_warnings:
+            lines.append(f"  ⚠️ {warning}")
+        lines.append("")
+
+        rows = []
+        for scenario in (1.0, 0.9, 0.8, 0.7):
+            balance = aa_default + coefficient * (scenario - 1) * revenue
+            return_rate = balance * after_tax_payout / market_cap * 100
+            rows.append([
+                f"{scenario:.1f}×",
+                format_number(balance),
+                f"{return_rate:.2f}%",
+                f"{return_rate - hurdle:+.2f}",
+            ])
+        lines.append(format_table(headers, rows, alignments=["l", "r", "r", "r"]))
+        lines.append("")
+
+        denominator = coefficient * revenue
+        critical = 1 + (hurdle / 100 * market_cap / after_tax_payout - aa_default) / denominator
+        lines.append(f"- 临界收入倍数 k* = {critical:.2f}（令 GG = II 反解）")
+        if critical > 1.0:
+            resilience = f"当前未达门槛（需收入增至约 {critical:.2f}×）"
+        elif critical >= 0.85:
+            resilience = "敏感（k* ≥ 0.85）"
+        elif critical >= 0.70:
+            resilience = "中等（0.70 ≤ k* < 0.85）"
+        else:
+            resilience = "强（k* < 0.70）"
+        lines.append(f"- 安全边际韧性：{resilience}")
+        return "\n".join(lines)
+
     def _compute_factor2_inputs(self, ts_code: str) -> str | None:
         """Compute §17.2: Factor 2 input parameters (OE components, payout, threshold)."""
         income_df = self._get_annual_df("income")
@@ -1145,6 +1638,16 @@ class DerivedMetricsMixin:
             lambda_reliability = "多项警告或异常"
         elif len(lambda_warnings) == 1:
             lambda_reliability = "有一项警告"
+
+        # §17.13 consumes the deterministic λ diagnostics from this section.
+        # Keep them alongside the AA variants so downstream grids share the
+        # same reported-equity-FCF basis selected above.
+        self._store["factor3_sensitivity"].update({
+            "lambda_median": lambda_median,
+            "lambda_reliability": lambda_reliability,
+            "lambda_warnings": lambda_warnings,
+            "cv": cv,
+        })
 
         # Build output
         lines = [format_header(3, "17.5 因子3·步骤7 基准可支配结余 + 敏感性输入"), ""]

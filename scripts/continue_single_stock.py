@@ -18,8 +18,10 @@ from string import Template
 
 try:
     from report_contract import render_qualitative_prompt_contract
+    from quality_control import main as quality_control_main
 except ModuleNotFoundError:  # package import: scripts.continue_single_stock
     from scripts.report_contract import render_qualitative_prompt_contract
+    from scripts.quality_control import main as quality_control_main
 
 
 def parse_args() -> argparse.Namespace:
@@ -81,6 +83,45 @@ def _validation_command(
     return shlex.join(_validation_argv(project_root, target, report_type))
 
 
+def _consistency_argv(project_root: Path, target: Path, output: Path) -> list[str]:
+    """Build the advisory cross-passage audit argument vector."""
+    return [
+        "python",
+        str(project_root / "scripts" / "report_consistency.py"),
+        "--report",
+        str(target),
+        "--output",
+        str(output),
+    ]
+
+
+def _consistency_command(project_root: Path, target: Path, output: Path) -> str:
+    return shlex.join(_consistency_argv(project_root, target, output))
+
+
+def prepare_computed_metrics(output_dir: Path) -> Path | None:
+    """Generate the deterministic Step5 metric budget when the data pack supports it.
+
+    Failure is intentionally non-fatal: older/minimal data packs can still use
+    the existing qualitative prompt path, which records the missing budget as a
+    quality gap instead of blocking prompt preparation.
+    """
+    input_path = output_dir / "data_pack_market.md"
+    output_path = output_dir / "computed_metrics.md"
+    exit_code = quality_control_main([
+        "--input",
+        str(input_path),
+        "--output",
+        str(output_path),
+    ])
+    if exit_code == 0:
+        return output_path
+    # Never let a failed refresh silently feed an older company's arithmetic
+    # budget into a new report run.
+    output_path.unlink(missing_ok=True)
+    return None
+
+
 def _render_step5_prompt_template(**values: str) -> str:
     template = Template(_STEP5_PROMPT_TEMPLATE.read_text(encoding="utf-8"))
     return template.substitute(values).rstrip("\n")
@@ -91,6 +132,7 @@ def build_step5_prompt(project_root: Path, output_dir: Path, qualitative_report_
         f"- {output_dir / 'data_pack_market.md'}",
         f"- {output_dir / 'annual_report.pdf'}",
         f"- {output_dir / 'pdf_sections.json'}",
+        f"- {output_dir / 'computed_metrics.md'}（若已生成：CM§1-CM§5 直接引用，禁止重复心算）",
     ]
     data_pack_report = output_dir / "data_pack_report.md"
     if data_pack_report.exists():
@@ -110,6 +152,12 @@ def build_step5_prompt(project_root: Path, output_dir: Path, qualitative_report_
             qualitative_report_path,
             "qualitative",
         ),
+        consistency_command=_consistency_command(
+            project_root,
+            qualitative_report_path,
+            output_dir / "consistency_report.md",
+        ),
+        consistency_report_path=str(output_dir / "consistency_report.md"),
     )
 
 
@@ -182,6 +230,7 @@ def main() -> None:
         ]
         for path in required:
             require_file(path)
+        computed_metrics_path = prepare_computed_metrics(output_dir)
         prompts = [
             ("step5", output_dir / "step5_qualitative_prompt.md", qualitative_report_path, build_step5_prompt(project_root, output_dir, qualitative_report_path)),
             ("step7", output_dir / "step7_turtle_prompt.md", turtle_report_path, build_step7_prompt(project_root, output_dir, qualitative_report_path, turtle_report_path)),
@@ -191,6 +240,10 @@ def main() -> None:
         print("[continue] checked input files:")
         for path in required:
             print(f"- {path}")
+        if computed_metrics_path:
+            print(f"[continue] computed metrics: {computed_metrics_path}")
+        else:
+            print("[continue] computed metrics unavailable; Step5 prompt will use degraded arithmetic rules")
         for stage, prompt_path, target_output, prompt in prompts:
             prompt_path.write_text(prompt + "\n", encoding="utf-8")
             print(f"[continue] {stage} prompt file: {prompt_path}")
@@ -209,6 +262,7 @@ def main() -> None:
         ]
         for path in required:
             require_file(path)
+        computed_metrics_path = prepare_computed_metrics(output_dir)
         prompt_path = output_dir / "step5_qualitative_prompt.md"
         target_output = qualitative_report_path
         prompt = build_step5_prompt(project_root, output_dir, qualitative_report_path)
@@ -240,6 +294,11 @@ def main() -> None:
     print("[continue] checked input files:")
     for path in required:
         print(f"- {path}")
+    if args.stage == "step5":
+        if computed_metrics_path:
+            print(f"[continue] computed metrics: {computed_metrics_path}")
+        else:
+            print("[continue] computed metrics unavailable; Step5 prompt will use degraded arithmetic rules")
     print(f"[continue] prompt file: {prompt_path}")
     print(f"[continue] next target output: {target_output}")
     print(f"\n=== {args.stage} workflow prompt ===")
