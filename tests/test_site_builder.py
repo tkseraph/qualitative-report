@@ -1,0 +1,114 @@
+import json
+import shutil
+from pathlib import Path
+
+import pytest
+
+from site_builder import SiteBuildError, build_site
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _site_project(tmp_path: Path) -> Path:
+    project_root = tmp_path / "project"
+    shutil.copytree(PROJECT_ROOT / "site", project_root / "site", ignore=shutil.ignore_patterns("dist"))
+    (project_root / "site" / "content" / "reports.json").write_text("[]\n", encoding="utf-8")
+    return project_root
+
+
+def test_build_site_writes_categorized_catalog_and_private_robots(tmp_path):
+    project_root = _site_project(tmp_path)
+
+    output = build_site(project_root)
+
+    html = (output / "index.html").read_text(encoding="utf-8")
+    assert "<title>价值涌现 · 投研报告目录</title>" in html
+    assert "研究商业本质" in html
+    assert "寻找长期价值" in html
+    assert "让价值从证据中" not in html
+    assert "让事实沉淀，让价值涌现" in html
+    assert "只发布完成复核的版本" not in html
+    assert "这里仅收录经过人工复核" not in html
+    assert "报告目录" in html
+    assert "商业质量" in html
+    assert "投资策略" in html
+    assert "估值研究" in html
+    assert 'content="noindex,nofollow"' in html
+    assert (output / "robots.txt").read_text(encoding="utf-8") == "User-agent: *\nDisallow: /\n"
+
+
+def test_build_site_lists_report_title_and_copies_detail_page(tmp_path):
+    project_root = _site_project(tmp_path)
+    site_root = project_root / "site"
+    content_path = Path("reports/688187-sh/qualitative/2026-06-18/index.html")
+    source = site_root / "content" / content_path
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_text(
+        "<!doctype html><html><head><title>时代电气</title></head>"
+        "<body>不构成投资建议</body></html>",
+        encoding="utf-8",
+    )
+    manifest = [
+        {
+            "id": "688187-sh-qualitative-2026-06-18",
+            "company_name": "时代电气",
+            "stock_code": "688187.SH",
+            "report_type": "qualitative",
+            "report_type_label": "商业质量评估",
+            "title": "时代电气（688187.SH）商业质量评估报告",
+            "summary": "高毛利轨交装备与现金转化之间仍需验证。",
+            "verdict": "B+ / 较强",
+            "industry": "运输设备",
+            "exchange": "SSE",
+            "analysis_date": "2026-06-18",
+            "published_at": "2026-08-02",
+            "public_path": content_path.as_posix(),
+            "content_path": content_path.as_posix(),
+        }
+    ]
+    (site_root / "content" / "reports.json").write_text(
+        json.dumps(manifest, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    output = build_site(project_root)
+
+    index = (output / "index.html").read_text(encoding="utf-8")
+    assert "时代电气（688187.SH）商业质量评估报告" in index
+    assert "reports/688187-sh/qualitative/2026-06-18/" in index
+    assert (output / content_path).is_file()
+    public_manifest = json.loads((output / "reports.json").read_text(encoding="utf-8"))
+    assert public_manifest[0]["public_url"].endswith("/2026-06-18/")
+    assert "content_path" not in public_manifest[0]
+
+
+def test_build_site_blocks_secret_in_approved_report(tmp_path):
+    project_root = _site_project(tmp_path)
+    site_root = project_root / "site"
+    content_path = Path("reports/688187-sh/qualitative/2026-06-18/index.html")
+    source = site_root / "content" / content_path
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_text(
+        "<!doctype html><html><head><title>x</title></head>"
+        "<body>OPENAI_API_KEY=sk-proj-abcdefghijklmnopqrstuvwxyz123456</body></html>",
+        encoding="utf-8",
+    )
+    manifest = [
+        {
+            "id": "688187-sh-qualitative-2026-06-18",
+            "company_name": "时代电气",
+            "stock_code": "688187.SH",
+            "report_type": "qualitative",
+            "title": "报告",
+            "summary": "摘要",
+            "analysis_date": "2026-06-18",
+            "published_at": "2026-08-02",
+            "public_path": content_path.as_posix(),
+            "content_path": content_path.as_posix(),
+        }
+    ]
+    (site_root / "content" / "reports.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(SiteBuildError, match="safety audit failed"):
+        build_site(project_root)

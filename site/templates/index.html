@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ config.site_name }} · 投研报告目录</title>
+  <meta name="description" content="{{ config.site_description }}">
+  {% if config.base_url %}
+  <link rel="canonical" href="{{ config.base_url }}/">
+  <meta property="og:title" content="{{ config.site_name }} · 投研报告目录">
+  <meta property="og:description" content="{{ config.site_description }}">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="{{ config.base_url }}/">
+  <meta property="og:image" content="{{ config.base_url }}{{ config.social_image }}">
+  <meta name="twitter:card" content="summary_large_image">
+  {% else %}
+  <meta name="robots" content="noindex,nofollow">
+  {% endif %}
+  <link rel="stylesheet" href="assets/site.css">
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <header class="masthead">
+    <div class="page-shell masthead-inner">
+      <a class="brand" href="index.html" aria-label="返回报告目录首页">
+        <span class="brand-mark">研</span>
+        <span>
+          <strong>{{ config.site_name }}</strong>
+          <small>RESEARCH ARCHIVE</small>
+        </span>
+      </a>
+      <span class="masthead-status"><i></i> Independent research</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero page-shell">
+      <div class="hero-copy">
+        <p class="eyebrow">EVIDENCE · JUDGMENT · REVISION</p>
+        <h1>研究商业本质<br><em>寻找长期价值</em></h1>
+        <p class="hero-lead">{{ config.site_tagline }}</p>
+      </div>
+      <dl class="hero-stats" aria-label="报告统计">
+        <div><dt>已发布</dt><dd>{{ reports|length }}</dd><span>份报告</span></div>
+        <div><dt>覆盖公司</dt><dd>{{ company_count }}</dd><span>家企业</span></div>
+        <div><dt>最新研究</dt><dd>{{ latest_date_short }}</dd><span>{{ latest_company or '等待首份报告' }}</span></div>
+      </dl>
+    </section>
+
+    <section class="catalog page-shell" aria-labelledby="catalog-title">
+      <div class="catalog-heading">
+        <div>
+          <p class="eyebrow">REPORT INDEX</p>
+          <h2 id="catalog-title">报告目录</h2>
+        </div>
+        <p>按研究类型浏览，或用股票代码、公司名称和关键词快速定位。</p>
+      </div>
+
+      <div class="catalog-tools">
+        <label class="search-box">
+          <span class="sr-only">搜索报告</span>
+          <span aria-hidden="true">⌕</span>
+          <input id="report-search" type="search" placeholder="搜索公司、代码、行业或报告标题" autocomplete="off">
+          <kbd>⌘ K</kbd>
+        </label>
+        <div class="category-filters" role="group" aria-label="报告分类筛选">
+          <button class="filter-button is-active" type="button" data-filter="all">全部 <span>{{ reports|length }}</span></button>
+          {% for category in categories %}
+          <button class="filter-button" type="button" data-filter="{{ category.key }}">{{ category.label }} <span>{{ category.reports|length }}</span></button>
+          {% endfor %}
+        </div>
+      </div>
+
+      <p class="result-status" id="result-status" aria-live="polite">共 {{ reports|length }} 份已发布报告</p>
+
+      <div class="category-list" id="report-catalog">
+        {% for category in categories %}
+        <section class="report-category" data-category-section="{{ category.key }}" aria-labelledby="category-{{ category.key }}">
+          <div class="category-header">
+            <div>
+              <span class="category-index">0{{ loop.index }}</span>
+              <h3 id="category-{{ category.key }}">{{ category.label }}</h3>
+            </div>
+            <p>{{ category.description }}</p>
+          </div>
+
+          {% if category.reports %}
+          <ol class="report-list">
+            {% for report in category.reports %}
+            <li class="report-row" data-report-card data-category="{{ report.report_type }}" data-search="{{ report.search_text }}">
+              <a href="{{ report.public_url }}">
+                <div class="report-identity">
+                  <span class="market-code">{{ report.stock_code }}</span>
+                  <span class="report-company">{{ report.company_name }}</span>
+                </div>
+                <div class="report-title-block">
+                  <h4>{{ report.title }}</h4>
+                  <p>{{ report.summary }}</p>
+                  <div class="report-tags">
+                    {% if report.industry %}<span>{{ report.industry }}</span>{% endif %}
+                    {% if report.verdict %}<span class="verdict-tag">{{ report.verdict }}</span>{% endif %}
+                  </div>
+                </div>
+                <div class="report-date">
+                  <time datetime="{{ report.analysis_date }}">{{ report.analysis_date }}</time>
+                  <span>阅读全文 →</span>
+                </div>
+              </a>
+            </li>
+            {% endfor %}
+          </ol>
+          {% else %}
+          <div class="category-empty">该分类暂未发布报告。</div>
+          {% endif %}
+        </section>
+        {% endfor %}
+      </div>
+
+      <div class="no-results" id="no-results" hidden>
+        <strong>没有匹配的报告</strong>
+        <p>换一个公司名称、股票代码或分类试试。</p>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <div class="page-shell footer-inner">
+      <div>
+        <strong>{{ config.site_name }}</strong>
+        <p>{{ config.site_description }}</p>
+      </div>
+      <div class="footer-legal">
+        <p>仅供研究交流，不构成任何投资建议。市场有风险，决策需独立判断。</p>
+        {% if config.icp_number %}<a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">{{ config.icp_number }}</a>{% endif %}
+        {% if config.public_security_number %}<span>{{ config.public_security_number }}</span>{% endif %}
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

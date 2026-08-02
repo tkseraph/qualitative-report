@@ -1295,6 +1295,8 @@ def render_report_html(
     appendix_path: Path | None = None,
     data_pack_path: Path | None = None,
     standalone: bool = False,
+    base_url: str = "",
+    report_url: str = "",
 ) -> None:
     """Render a qualitative markdown report to the HTML dashboard template."""
     project_root = Path(__file__).resolve().parent.parent
@@ -1329,21 +1331,8 @@ def render_report_html(
         dp_text = data_pack_path.read_text(encoding="utf-8")
         dp_info = extract_data_pack_info(dp_text)
 
-    # --- Load standalone CSS if requested ---
-    standalone_css = ""
-    if standalone:
-        # Try to load style.css + report.css from terancejiang.com project
-        site_root = Path.home() / "Projects" / "Teracnejiang.com"
-        css_parts = []
-        for css_file in ["assets/css/style.css", "assets/css/report.css"]:
-            css_path = site_root / css_file
-            if css_path.exists():
-                css_parts.append(css_path.read_text(encoding="utf-8"))
-        if css_parts:
-            standalone_css = "\n".join(css_parts)
-        else:
-            # Fallback: minimal inline CSS for local viewing
-            standalone_css = _FALLBACK_CSS
+    # --- Load repository-owned standalone CSS if requested ---
+    standalone_css = _FALLBACK_CSS if standalone else ""
 
     # --- Generate slug ---
     slug = ""
@@ -1352,6 +1341,10 @@ def render_report_html(
         name = report["company_name"] or ""
         # Simple slug: company-code-qualitative
         slug = f"{name}-{code}-qualitative".lower().replace(" ", "-")
+
+    canonical_url = ""
+    if base_url and report_url:
+        canonical_url = f"{base_url.rstrip('/')}/{report_url.lstrip('/')}"
 
     # --- Render template ---
     env = Environment(loader=BaseLoader())
@@ -1365,6 +1358,7 @@ def render_report_html(
         exchange=dp_info["exchange"],
         industry=dp_info["industry"],
         slug=slug,
+        canonical_url=canonical_url,
         standalone_css=standalone_css,
         kpi_cards=kpi_cards,
         executive_summary=report["executive_summary"],
@@ -1425,6 +1419,16 @@ def main():
         action="store_true",
         help="Embed CSS inline for local viewing (no external CSS dependencies)",
     )
+    parser.add_argument(
+        "--base-url",
+        default="",
+        help="Published site origin, e.g. https://research.example.com",
+    )
+    parser.add_argument(
+        "--report-url",
+        default="",
+        help="Published report path used with --base-url for canonical metadata",
+    )
     args = parser.parse_args()
 
     try:
@@ -1435,6 +1439,8 @@ def main():
             appendix_path=Path(args.appendix) if args.appendix else None,
             data_pack_path=Path(args.data_pack) if args.data_pack else None,
             standalone=args.standalone,
+            base_url=args.base_url,
+            report_url=args.report_url,
         )
     except FileNotFoundError as exc:
         print(f"Error: {exc}", file=sys.stderr)

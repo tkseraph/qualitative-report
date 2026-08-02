@@ -2420,3 +2420,34 @@ moat_existence: true
     values_by_label = {card["label"]: card["value"] for card in cards}
     assert values_by_label["优势存在性"] == "存在"
     assert values_by_label["优势存在性"] != "true"
+
+
+def test_render_report_html_does_not_publish_upstream_canonical_by_default(tmp_path):
+    report_path = tmp_path / "600585_SH_qualitative_report.md"
+    output_path = tmp_path / "600585_SH_qualitative_report.html"
+    report_path.write_text(SAMPLE_LEVEL_RESEARCH_MD, encoding="utf-8")
+
+    render_report_html(report_path, output_path, standalone=True)
+
+    html = output_path.read_text(encoding="utf-8")
+    assert "terancejiang.com" not in html
+    assert '<meta name="robots" content="noindex,nofollow">' in html
+    assert "JetBrainsMono-Regular.woff2" not in html
+
+
+def test_render_report_html_uses_explicit_published_canonical(tmp_path):
+    report_path = tmp_path / "600585_SH_qualitative_report.md"
+    output_path = tmp_path / "600585_SH_qualitative_report.html"
+    report_path.write_text(SAMPLE_LEVEL_RESEARCH_MD, encoding="utf-8")
+
+    render_report_html(
+        report_path,
+        output_path,
+        standalone=True,
+        base_url="https://research.example.com/",
+        report_url="reports/600585-sh/qualitative/2026-05-09/",
+    )
+
+    html = output_path.read_text(encoding="utf-8")
+    assert '<link rel="canonical" href="https://research.example.com/reports/600585-sh/qualitative/2026-05-09/">' in html
+    assert '<meta property="og:url" content="https://research.example.com/reports/600585-sh/qualitative/2026-05-09/">' in html

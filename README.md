@@ -442,6 +442,26 @@ Notebook 包含 7 个 Cell：初始化 → Tier 1 过滤 → 排名 → Tier 2 �
 输入文件：`{code_market}_turtle_report.md`  
 输出文件：`{code_market}_turtle_report.html`
 
+### 本地投研报告发布站
+
+`site/` 提供面向个人网站的静态报告目录：首页按商业质量、投资策略和估值研究分类展示报告标题，点击后进入独立详情页。站点只接收人工批准的最终 HTML，不会直接公开 `output/` 中的年报、数据包或 Prompt。
+
+```bash
+# 预览将要加入目录的元数据并执行安全检查，不写入站点
+.venv/bin/python scripts/publish_report.py \
+  --report output/688187_times_electric_e2e_fresh/688187_SH_qualitative_report.html
+
+# 人工确认后批准，自动更新目录并生成 site/dist
+.venv/bin/python scripts/publish_report.py \
+  --report output/688187_times_electric_e2e_fresh/688187_SH_qualitative_report.html \
+  --approve
+
+# 本地预览
+.venv/bin/python -m http.server 8000 --directory site/dist
+```
+
+域名就绪前保持 `site/config.json` 的 `base_url` 为空，构建结果会主动禁止搜索引擎收录。完整发布约定见 `site/README.md`。
+
 ## 项目结构
 
 ```

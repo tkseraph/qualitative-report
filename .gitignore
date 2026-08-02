@@ -33,6 +33,7 @@ output/*
 !output/.gitkeep
 scripts/output/
 notebooks/output/
+site/dist/
 
 # Sensitive
 .env

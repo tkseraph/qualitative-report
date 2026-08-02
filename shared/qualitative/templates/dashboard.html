@@ -5,12 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ company_name }} ({{ stock_code }}) · 商业质量评估</title>
 <meta name="description" content="{{ company_name }}（{{ stock_code }}）商业模式与护城河定性分析 — 6维度深度评估">
-<link rel="canonical" href="https://terancejiang.com/zh/stock/{{ slug }}.html">
+{% if canonical_url %}<link rel="canonical" href="{{ canonical_url }}">{% else %}<meta name="robots" content="noindex,nofollow">{% endif %}
 <meta property="og:title" content="{{ company_name }} ({{ stock_code }}) · 商业质量评估">
 <meta property="og:description" content="{{ company_name }}（{{ stock_code }}）商业模式与护城河定性分析">
 <meta property="og:type" content="article">
-<meta property="og:url" content="https://terancejiang.com/zh/stock/{{ slug }}.html">
+{% if canonical_url %}<meta property="og:url" content="{{ canonical_url }}">{% endif %}
+{% if not standalone_css %}
 <link rel="preload" href="/assets/fonts/JetBrainsMono-Regular.woff2" as="font" type="font/woff2" crossorigin>
+{% endif %}
 {% if standalone_css %}
 <style>
 {{ standalone_css }}
