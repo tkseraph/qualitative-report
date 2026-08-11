@@ -13,9 +13,11 @@ from typing import Any
 from urllib.parse import urljoin
 
 try:
+    from .qualitative_quality import rating_from_markdown
     from .site_builder import SiteBuildError, build_site, load_report_manifest, load_site_config
     from .site_security import inspect_public_text, load_known_local_secrets
 except ImportError:  # pragma: no cover - direct script execution
+    from qualitative_quality import rating_from_markdown
     from site_builder import SiteBuildError, build_site, load_report_manifest, load_site_config
     from site_security import inspect_public_text, load_known_local_secrets
 
@@ -140,6 +142,10 @@ def extract_report_metadata(
     summary = _truncate(summary or _strip_tags(description) or f"{company_name}{REPORT_TYPES[report_type]}")
 
     verdict = overrides.get("verdict", "")
+    if not verdict and report_type == "qualitative" and markdown:
+        structured_rating = rating_from_markdown(markdown)
+        if structured_rating:
+            verdict = structured_rating.display
     if not verdict and markdown:
         verdict = _first_match(r"\*\*总体评级[：:]\s*([^*]+?)\*\*", markdown)
         verdict = re.split(r"[，。；;]", verdict)[0].strip()

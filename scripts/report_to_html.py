@@ -21,6 +21,13 @@ from pathlib import Path
 import markdown
 from jinja2 import Environment, BaseLoader
 
+try:
+    from qualitative_quality import rating_from_markdown
+    from report_contract import report_contract
+except ModuleNotFoundError:  # package import
+    from scripts.qualitative_quality import rating_from_markdown
+    from scripts.report_contract import report_contract
+
 
 # ---------------------------------------------------------------------------
 # Markdown → HTML conversion
@@ -55,14 +62,33 @@ def _is_large_markdown_table(table_text: str) -> bool:
     return len(rows) >= 5
 
 
+def _dense_table_component_role(table_text: str) -> str:
+    headers, _ = _parse_markdown_table(table_text)
+    header_set = {re.sub(r"\s+", " ", header).strip() for header in headers}
+    moat_chain_headers = {"步骤", "审讯问题", "事实与作用机制", "当前结论", "失效信号"}
+    moat_falsification_headers = {"支持护城河", "削弱护城河", "同业/竞品验证", "可持续 KPI"}
+    if moat_chain_headers.issubset(header_set):
+        return "moat-interrogation"
+    if moat_falsification_headers.issubset(header_set):
+        return "moat-falsification"
+    return "dense-evidence"
+
+
+def _should_open_dense_table_by_default(table_text: str) -> bool:
+    role = _dense_table_component_role(table_text)
+    return role in report_contract("qualitative")["html"]["default_open_table_roles"]
+
+
 def _collapse_large_markdown_tables(md_text: str) -> str:
     def collapse(match: re.Match) -> str:
         table_text = match.group(1).strip()
         if not _is_large_markdown_table(table_text):
             return match.group(0)
         table_html = md_to_html(table_text)
+        open_attribute = " open" if _should_open_dense_table_by_default(table_text) else ""
+        component_role = _dense_table_component_role(table_text)
         return (
-            '<details class="dense-table-panel">\n'
+            f'<details class="dense-table-panel" data-component-role="{component_role}"{open_attribute}>\n'
             '<summary>完整数据表</summary>\n'
             '<div class="details-content">\n'
             f'{table_html}\n'
@@ -348,11 +374,24 @@ _FALLBACK_CSS = """
 .report-body .callout{padding:16px 20px;background:var(--bg2);border-radius:8px;margin:20px 0;font-size:14px;color:var(--text2);line-height:1.7}
 .report-body .sample-hero{padding:24px 0 8px;margin-bottom:28px;border-bottom:1px solid var(--border)}.report-body .sample-hero .header{border-bottom:0;margin-bottom:18px;padding-bottom:0}.report-body .article-meta-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0 8px}.report-body .article-meta-item{padding:10px 12px;background:var(--bg2);border:1px solid var(--border);border-radius:8px}.report-body .article-meta-item span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--text3)}.report-body .article-meta-item strong{display:block;margin-top:2px;font-size:12px;color:var(--text);font-weight:500}.report-body .research-flow-index{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0 4px;font-size:12px;color:var(--text3)}.report-body .research-flow-index span{letter-spacing:.5px}.report-body .research-flow-index strong{padding:3px 8px;background:var(--bg2);border:1px solid var(--border);border-radius:999px;color:var(--text2);font-weight:500}.report-body .hero-verdict{margin:18px 0}.report-body .hero-first-screen{background:var(--bg2);border:1px solid var(--border)}.report-body .section-eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:var(--text3);margin-bottom:8px;font-weight:600}
 .report-body .hero-rating-stack{margin:18px 0;padding:18px 20px;background:var(--bg2);border:1px solid var(--border);border-radius:10px}.report-body .hero-rating-primary{font-size:28px;line-height:1.2;font-weight:600;color:var(--text);margin-bottom:6px}.report-body .hero-rating-stack p{margin:0;color:var(--text2)}.report-body .hero-thesis-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:16px 0 8px}.report-body .hero-thesis-card{padding:14px 16px;background:var(--bg2);border:1px solid var(--border);border-radius:10px}.report-body .hero-thesis-card span{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);margin-bottom:5px}.report-body .hero-thesis-card strong{display:block;color:var(--text);font-size:14px;font-weight:600;line-height:1.5}.report-body .hero-moat-source{border-left:4px solid var(--green)}.report-body .hero-risk-card,.report-body .hero-refutation-card{border-left:4px solid var(--red)}.report-body .hero-company-essence{border-left:4px solid var(--blue)}@media(max-width:600px){.report-body .hero-thesis-grid{grid-template-columns:1fr}}.report-body .snapshot-grid{margin:12px 0}.report-body .snapshot-grid .metric{border:1px solid var(--border)}.report-body .executive-summary-card{background:var(--blue-bg);border:1px solid rgba(37,99,160,.12);color:var(--text2)}.report-body .risk-panel{background:var(--amber-bg);border:1px solid rgba(160,108,26,.14)}.report-body .research-article-section{margin:40px 0}.report-body .section-divider{height:1px;background:var(--border);margin:34px 0}.report-body .adaptive-research-panel{background:var(--green-bg);border:1px solid rgba(26,122,90,.14)}.report-body .cross-validation-panel{background:var(--amber-bg);border:1px solid rgba(160,108,26,.14)}.report-body .evidence-modules-panel{background:var(--blue-bg);border:1px solid rgba(37,99,160,.14)}.report-body .observation-panel{background:var(--bg2);border:1px solid var(--border)}.report-body .report-limitations-panel{background:var(--red-bg);border:1px solid rgba(192,57,43,.14)}.report-body .first-screen-thesis-card{border-left-width:4px}.report-body .semantic-panel-heading{padding:8px 10px;border-left:4px solid var(--border);background:var(--bg2);border-radius:8px}.report-body .profit-bridge-panel{border-left-color:var(--blue)}.report-body .moat-interrogation-panel{border-left-color:var(--green)}.report-body .governance-red-flag-panel{border-left-color:var(--red)}.report-body .mda-interrogation-panel{border-left-color:var(--amber)}.report-body .dimension-card{margin:34px 0;padding:0;background:transparent;border:0;border-radius:0}.report-body .dimension-card h2{margin-top:0}.report-body .dimension-content>p:first-child{font-size:15px;color:var(--text)}
+.report-body .cross-validation-panel>h3{margin:28px 0 8px;padding-top:18px;border-top:1px solid rgba(160,108,26,.18);font-size:15px;line-height:1.45}.report-body .cross-validation-panel>h3:first-of-type{margin-top:12px;padding-top:0;border-top:0}.report-body .cross-validation-panel>p{margin:0 0 18px;line-height:1.85}.report-body .cross-validation-panel>.cross-reassessment-grid{margin-top:12px}
 .report-body .first-screen-card table,.report-body .future-observations table{margin:0}.report-body .first-screen-card td:not(:first-child),.report-body .future-observations td:not(:first-child){text-align:left;font-family:inherit}.report-body .core-contradiction{border-left:4px solid var(--amber)}.report-body .cross-reassessment-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:16px 0}.report-body .cross-reassessment-card{padding:14px 16px;background:var(--bg);border:1px solid var(--border);border-left:4px solid var(--border);border-radius:10px}.report-body .cross-reassessment-card span{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);margin-bottom:5px}.report-body .cross-reassessment-card strong{display:block;color:var(--text);font-size:14px;line-height:1.5}.report-body .cross-reassessment-card p{margin:6px 0 0;font-size:13px}.report-body .cross-reassessment-card em{display:block;margin-top:8px;font-style:normal;font-size:12px;color:var(--text3)}.report-body .support-card{border-left-color:var(--green)}.report-body .pressure-card,.report-body .trigger-card{border-left-color:var(--red)}.report-body .conflict-card{border-left-color:var(--amber)}.report-body .cross-reassessment-panel{border-left-color:var(--purple)}@media(max-width:600px){.report-body .cross-reassessment-grid{grid-template-columns:1fr}}
 	.report-body .trend-chart-section{margin:40px 0}.report-body .trend-chart-grid{display:grid;grid-template-columns:1fr;gap:16px}.report-body .trend-chart-card{background:var(--blue-bg);border:1px solid rgba(37,99,160,.14);border-radius:8px;padding:18px 20px}.report-body .trend-chart-title{font-size:15px;font-weight:600;color:var(--text);margin-bottom:8px}.report-body .trend-chart-readout{font-size:13px;color:var(--text2);margin-bottom:12px}.report-body .chart-container{height:220px;margin:12px 0;padding:12px;background:var(--bg);border:1px solid var(--border);border-radius:8px}.report-body .chart-container[data-chart-visual="mixed"]{border-left:4px solid var(--blue);background:linear-gradient(180deg,var(--bg),var(--blue-bg))}.report-body .chart-container[data-chart-visual="line"]{border-left:4px solid var(--green);background:linear-gradient(180deg,var(--bg),var(--green-bg))}.report-body .chart-container[data-chart-visual="bar"]{border-left:4px solid var(--amber);background:linear-gradient(180deg,var(--bg),var(--amber-bg))}.report-body .chart-container canvas{display:block;width:100%;height:100%}.report-body .chart-caption{font-size:12px;color:var(--text3);margin:6px 0 12px}.report-body .trend-chart-card table{margin:0;font-size:12px}.report-body .sotp-visual-panel{margin:18px 0;padding:18px 20px;background:var(--purple-bg);border:1px solid rgba(108,92,231,.14);border-radius:10px}.report-body .sotp-panel-heading{border-left-color:var(--purple)}.report-body .sotp-node-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0}.report-body .sotp-node-card{padding:14px 16px;background:var(--bg);border:1px solid var(--border);border-left:4px solid var(--purple);border-radius:10px}.report-body .sotp-node-card span{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--text3);margin-bottom:5px}.report-body .sotp-node-card strong{display:block;color:var(--text);font-size:14px}.report-body .sotp-node-card p{margin:6px 0 0;font-size:13px}.report-body .sotp-node-card em{display:block;margin-top:6px;font-style:normal;font-size:12px;color:var(--text3)}@media(max-width:700px){.report-body .sotp-node-grid{grid-template-columns:1fr}}
 .report-body details{margin:16px 0}.report-body .appendix-panel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:0 16px}.report-body summary{cursor:pointer;font-size:13px;font-weight:500;text-transform:uppercase;letter-spacing:1px;color:var(--text3);padding:10px 0;border-bottom:1px solid var(--border);user-select:none}.report-body details .details-content{padding:16px 0;font-size:14px;color:var(--text2)}
 .report-body .footer{margin-top:56px;padding-top:20px;border-top:1px solid var(--border);font-size:12px;color:var(--text3);line-height:1.8}
 a{color:var(--blue);text-decoration:none}a:hover{text-decoration:underline}
+@media(max-width:700px){
+html,body,.report-body{max-width:100%;overflow-x:hidden}
+.report-body .sample-hero,.report-body .header,.report-body .article-meta-grid,.report-body .dimension-card,.report-body .dimension-content,.report-body .trend-chart-grid,.report-body .trend-chart-card,.report-body .chart-container,.report-body .sotp-visual-panel,.report-body .sotp-node-grid,.report-body .sotp-node-card{box-sizing:border-box;min-width:0;max-width:100%}
+.report-body .article-meta-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.report-body .trend-chart-grid{grid-template-columns:minmax(0,1fr)}
+.report-body .trend-chart-card,.report-body .chart-container{width:100%}
+.report-body .trend-chart-card{overflow-x:hidden}
+.report-body .trend-chart-card table{display:block;width:100%;max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.report-body .trend-chart-title,.report-body .trend-chart-readout,.report-body .chart-caption{overflow-wrap:anywhere}
+.report-body details .details-content{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.report-body details .details-content table{min-width:max-content}
+}
 @media print{.report-body{padding:24px;font-size:12px;max-width:100%}}
 """
 
@@ -674,12 +713,18 @@ def _reader_chart_title(title: str) -> str:
     return re.sub(r"^读图结论[：:]\s*", "", title).strip()
 
 
-def _chart_canvas_html(title: str, readout: str, table_text: str, chart_type: str = "multi-series-trend") -> str:
+def _chart_canvas_html(
+    title: str,
+    readout: str,
+    table_text: str,
+    chart_type: str = "multi-series-trend",
+    chart_id: str = "",
+) -> str:
     display_title = _reader_chart_title(title)
     caption = f"{display_title} — {readout}" if readout else display_title
     payload = _chart_series_payload(table_text, chart_type)
     return (
-        f'<div class="chart-container" data-chart-type="{chart_type}" data-chart-kind="{_chart_kind(chart_type)}" data-chart-visual="{_chart_visual_grammar(chart_type)}" data-chart-window="{payload.get("window", "all")}" data-chart-title="{html.escape(display_title, quote=True)}" '
+        f'<div class="chart-container" data-chart-id="{html.escape(chart_id, quote=True)}" data-chart-type="{chart_type}" data-chart-kind="{_chart_kind(chart_type)}" data-chart-visual="{_chart_visual_grammar(chart_type)}" data-chart-window="{payload.get("window", "all")}" data-chart-title="{html.escape(display_title, quote=True)}" '
         f'data-chart-series="{html.escape(json.dumps(payload, ensure_ascii=False), quote=True)}">'
         f'<canvas aria-label="{html.escape(caption, quote=True)}"></canvas>'
         f'</div>'
@@ -803,6 +848,14 @@ def _chart_type_from_metadata(body: str) -> str | None:
     return "multi-series-trend"
 
 
+def _chart_metadata_value(body: str, field: str) -> str:
+    match = re.search(r"^chart_ready:\s*true\s*;(?P<meta>.*)$", body, flags=re.MULTILINE)
+    if not match:
+        return ""
+    field_match = re.search(rf"(?:^|;)\s*{re.escape(field)}:\s*([^;]+)", match.group("meta"))
+    return field_match.group(1).strip() if field_match else ""
+
+
 def _chart_type_for_title(title: str, default: str = "multi-series-trend") -> str:
     if any(keyword in title for keyword in ("资本配置", "配置流向", "流向")):
         return "bar-table"
@@ -877,12 +930,17 @@ def _chart_card(title: str, body: str, chart_type: str = "multi-series-trend", t
     if chart_type == "bar-table" and len(datasets) > 3:
         return None
     readout = _readout_from_body(body)
+    explicit_target = _chart_metadata_value(body, "chart_target")
+    if explicit_target not in {"executive_summary", "trend", *(f"dimension_{index}" for index in range(1, 7))}:
+        explicit_target = ""
+    chart_id = _chart_metadata_value(body, "chart_id")
     return {
         "title": title,
         "readout": readout,
-        "target": target_override or _core_chart_target(title),
+        "target": explicit_target or target_override or _core_chart_target(title),
+        "chart_id": chart_id,
         "title_class": _semantic_chart_title_class(title),
-        "chart_html": _chart_canvas_html(title, readout, table_text, chart_type),
+        "chart_html": _chart_canvas_html(title, readout, table_text, chart_type, chart_id),
         "table_html": md_to_html(table_text),
     }
 
@@ -1091,7 +1149,9 @@ def parse_report(md_text: str) -> dict:
         elif "自适应研究计划" in title:
             result["adaptive_research_plan"] = md_to_html(body)
         elif "交叉验证与深度分析" in title or "交叉验证" in title:
-            result["cross_validation_research"] = _decorate_status_terms(_promote_cross_reassessment_cards(body))
+            result["cross_validation_research"] = _decorate_status_terms(
+                _decorate_semantic_panel_headings(md_to_html(_promote_cross_reassessment_cards(body)))
+            )
         elif "样板证据模块" in title or "证据模块" in title:
             result["evidence_modules"] = _decorate_semantic_panel_headings(md_to_html(body))
         elif "未来观察" in title or "观察变量" in title:
@@ -1245,10 +1305,11 @@ def extract_data_pack_info(dp_text: str) -> dict:
 
 
 def build_verdict(md_text: str) -> dict:
-    """Build the verdict banner from the report's moat_rating and conclusion."""
+    """Build the verdict banner from overall business quality, not moat."""
     def _find_param(name: str) -> str:
         return _reader_value(name, _find_structured_param(md_text, name))
 
+    rating = rating_from_markdown(md_text)
     moat = _find_param("moat_rating")
     sust = _find_param("moat_sustainability")
 
@@ -1262,9 +1323,31 @@ def build_verdict(md_text: str) -> dict:
         verdict_text = final_m.group(1).strip().strip("*")
     else:
         # Fallback: build from params
-        verdict_text = f"护城河评级 {moat}，可持续性 {sust}" if moat else ""
+        if rating:
+            verdict_text = f"展望 {rating.outlook}；护城河评级 {moat or '未披露'}"
+        else:
+            verdict_text = f"护城河评级 {moat}，可持续性 {sust}" if moat else ""
 
     # Determine color
+    if rating:
+        grade_colors = {
+            "A": ("tag-green", "v-green"),
+            "A-": ("tag-green", "v-green"),
+            "B+": ("tag-green", "v-green"),
+            "B": ("tag-amber", "v-amber"),
+            "B-": ("tag-amber", "v-amber"),
+            "C": ("tag-red", "v-red"),
+            "D": ("tag-red", "v-red"),
+        }
+        tag_class, verdict_class = grade_colors[rating.grade]
+        return {
+            "verdict_class": verdict_class,
+            "verdict_tag_class": tag_class,
+            "verdict_tag": f"{rating.grade} / {rating.label}",
+            "verdict_text": verdict_text,
+        }
+
+    # Backward-compatible rendering for historical reports that predate v2.
     tag_map = {
         "强": ("tag-green", "v-green", "STRONG MOAT"),
         "较强": ("tag-green", "v-green", "FAIRLY STRONG"),

@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "qualitative_argument_schema.json",
+  "title": "Qualitative report argument map",
+  "type": "object",
+  "required": ["schema_version", "rating_hypothesis", "dimensions", "cross_validation", "sotp_decision"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "rating_hypothesis": {
+      "type": "object",
+      "required": ["grade", "label", "outlook", "supporting_evidence", "pressure_evidence", "upgrade_trigger", "downgrade_trigger"],
+      "properties": {
+        "grade": {"enum": ["A", "A-", "B+", "B", "B-", "C", "D"]},
+        "label": {"enum": ["优秀", "较强", "中等偏强", "中等", "中等偏弱", "较弱", "不合格"]},
+        "outlook": {"enum": ["正面", "稳定", "观察", "负面"]},
+        "supporting_evidence": {"$ref": "#/$defs/evidenceIds"},
+        "pressure_evidence": {"$ref": "#/$defs/evidenceIds"},
+        "upgrade_trigger": {"type": "string", "minLength": 8},
+        "downgrade_trigger": {"type": "string", "minLength": 8}
+      },
+      "additionalProperties": false
+    },
+    "dimensions": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "required": ["dimension", "conclusion", "mechanism", "evidence_ids", "counter_evidence_ids", "investment_implication", "reassessment_trigger"],
+        "properties": {
+          "dimension": {"enum": ["D1", "D2", "D3", "D4", "D5", "D6"]},
+          "conclusion": {"type": "string", "minLength": 12},
+          "mechanism": {"type": "string", "minLength": 12},
+          "evidence_ids": {"$ref": "#/$defs/evidenceIds"},
+          "counter_evidence_ids": {"$ref": "#/$defs/evidenceIds"},
+          "investment_implication": {"type": "string", "minLength": 12},
+          "reassessment_trigger": {"type": "string", "minLength": 8}
+        },
+        "additionalProperties": false
+      }
+    },
+    "cross_validation": {
+      "type": "object",
+      "required": ["resolved_conflicts", "unresolved_conflicts", "rating_action"],
+      "properties": {
+        "resolved_conflicts": {"type": "array", "items": {"type": "string"}},
+        "unresolved_conflicts": {"type": "array", "items": {"type": "string"}},
+        "rating_action": {"enum": ["维持", "上调", "下调", "观察"]}
+      },
+      "additionalProperties": false
+    },
+    "sotp_decision": {
+      "type": "object",
+      "required": ["mode", "trigger_results", "data_readiness", "decision_reason", "best_feasible_analysis", "double_counting_check", "upgrade_trigger"],
+      "properties": {
+        "mode": {"enum": ["not_applicable", "diagnostic", "listed_asset_bridge", "full"]},
+        "trigger_results": {"type": "string", "minLength": 8},
+        "data_readiness": {"enum": ["sufficient", "partial", "insufficient", "not_applicable"]},
+        "decision_reason": {"type": "string", "minLength": 12},
+        "best_feasible_analysis": {"type": "string", "minLength": 12},
+        "double_counting_check": {"type": "string", "minLength": 12},
+        "upgrade_trigger": {"type": "string", "minLength": 8}
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "evidenceIds": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^E[0-9]{3,}$"},
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": false
+}

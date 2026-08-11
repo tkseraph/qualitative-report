@@ -9,9 +9,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 try:
+    from qualitative_quality import rating_errors, structured_param
     from report_contract import report_contract
     from report_schema import REPORT_SCHEMAS, ReportSchema, SchemaRequirement
 except ModuleNotFoundError:  # package import: scripts.validate_reports
+    from scripts.qualitative_quality import rating_errors, structured_param
     from scripts.report_contract import report_contract
     from scripts.report_schema import REPORT_SCHEMAS, ReportSchema, SchemaRequirement
 
@@ -379,30 +381,76 @@ def _has_d1_business_formula(section_text: str) -> bool:
 def _has_d2_moat_falsification(section_text: str) -> bool:
     if not section_text or "护城河证伪表" not in section_text:
         return False
-    has_falsification_table = any(
-        "支持护城河" in block
+    falsification_blocks = [
+        block for block in _markdown_table_blocks(section_text)
+        if "支持护城河" in block
         and "削弱护城河" in block
         and re.search(r"可持续\s*KPI", block)
-        for block in _markdown_table_blocks(section_text)
-    )
-    return has_falsification_table and _contains_any(section_text, ("同业", "同行", "竞争对手", "可比公司", "竞品", "对标"))
+    ]
+    if not falsification_blocks or not _contains_any(
+        section_text,
+        ("同业", "同行", "竞争对手", "可比公司", "竞品", "对标"),
+    ):
+        return False
+    # A table is evidence storage, not falsification analysis.  Require prose
+    # that compares at least two hypotheses and states the retained boundary.
+    for block in falsification_blocks:
+        start = section_text.find(block)
+        context = section_text[max(0, start - 900):start + len(block) + 1400]
+        competing_hypotheses = _contains_any(
+            context,
+            ("假设", "如果", "若", "只来自", "不能解释", "反例"),
+        )
+        verdict = _contains_any(
+            context,
+            ("没有通过验证", "被否定", "不成立", "保留结论", "证伪后", "仍成立"),
+        )
+        rating_boundary = _contains_any(
+            context,
+            ("不足以上调", "不支持上调", "不支持强", "限制了", "评级维持", "综合护城河"),
+        )
+        if competing_hypotheses and verdict and rating_boundary:
+            return True
+    return False
 
 
 def _has_d2_moat_interrogation_chain(section_text: str) -> bool:
     if not section_text:
         return False
-    required_groups = (
-        ("行业地图", "市场结构", "行业结构"),
-        ("量化验证", "ROE 验证", "ROE验证", "资本回报"),
-        ("供给侧优势", "供给侧", "资源", "成本领先"),
-        ("需求侧弱点", "需求侧", "客户", "转换成本"),
-        ("规模边界", "规模经济", "规模优势"),
-        ("伪优势过滤", "真优势", "半真优势", "伪优势"),
-        ("竞争对标", "同业坐标", "同业对比", "竞品验证", "对标"),
-        ("可持续 KPI", "可持续KPI", "监控 KPI", "预警阈值"),
-    )
     for block in _markdown_table_blocks(section_text):
-        if all(_contains_any(block, alternatives) for alternatives in required_groups):
+        headers, rows = _parse_markdown_table(block)
+        if not headers or not rows:
+            continue
+        header_text = "|".join(headers)
+        if not all(
+            _contains_any(header_text, alternatives)
+            for alternatives in (
+                ("步骤", "审讯环节"),
+                ("审讯问题", "问题"),
+                ("事实与作用机制", "事实与机制", "作用机制"),
+                ("当前结论", "当前判断", "结论"),
+                ("失效信号", "失败信号", "反证信号"),
+            )
+        ):
+            continue
+        if len(rows) != 6 or any(len(row) < 5 for row in rows):
+            continue
+        step_numbers: list[int] = []
+        for row in rows:
+            match = re.match(r"\s*([1-6])(?:\.|、|\s)", row[0])
+            if not match:
+                break
+            step_numbers.append(int(match.group(1)))
+        if step_numbers != [1, 2, 3, 4, 5, 6]:
+            continue
+        if not all(len(row[1].strip()) >= 8 and len(row[2].strip()) >= 12 and len(row[4].strip()) >= 6 for row in rows):
+            continue
+        block_end = section_text.find(block) + len(block)
+        synthesis = section_text[block_end:block_end + 1000]
+        if _contains_any(synthesis, ("边界", "不是", "并非", "限制", "保护", "上限", "下限")) and _contains_any(
+            synthesis,
+            ("投资含义", "因此", "这意味着", "结论"),
+        ):
             return True
     return False
 
@@ -531,7 +579,7 @@ def _has_d6_trigger_table(section_text: str) -> bool:
     return (
         bool(section_text)
         and heading in section_text
-        and _contains_any(section_text, ("触发条件", "是否展开"))
+        and _contains_any(section_text, ("触发条件", "是否展开", "是否触发"))
         and _markdown_table_count(section_text) >= 1
     )
 
@@ -554,6 +602,32 @@ def _has_d6_threshold_calculation_basis(section_text: str) -> bool:
         section_text,
         ("计算依据", "计算口径", "母合差异", "母公司", "合并", "净利润", "利润占比", "投资收益占比", "非经常性损益占比"),
     )
+
+
+def _has_d6_sotp_mode_contract(md_text: str, section_text: str) -> bool:
+    d6 = QUALITATIVE_CONTRACT["d6"]
+    values = {
+        field: structured_param(md_text, field)
+        for field in d6["required_decision_fields"]
+    }
+    if any(not value for value in values.values()):
+        return False
+    if values["sotp_mode"] not in d6["modes"]:
+        return False
+    if values["sotp_data_readiness"] not in {
+        "sufficient", "partial", "insufficient", "not_applicable"
+    }:
+        return False
+    mode_readable = {
+        "not_applicable": ("不适用", "not_applicable"),
+        "diagnostic": ("诊断", "diagnostic"),
+        "listed_asset_bridge": ("上市资产", "价值桥", "listed_asset_bridge"),
+        "full": ("完整 SOTP", "完整SOTP", "full"),
+    }[values["sotp_mode"]]
+    return _contains_any(section_text, mode_readable) and _contains_any(
+        section_text,
+        ("重复计价", "重复计算", "重复加总", "不可加回", "不能再加"),
+    ) and _contains_any(section_text, ("升级", "触发", "启动"))
 
 
 def _uses_readable_money_units(md_text: str) -> bool:
@@ -852,10 +926,11 @@ def _chart_ready_metadata_lines(md_text: str) -> list[str]:
 
 
 def _is_cycle_or_heavy_asset_report(md_text: str) -> bool:
-    return _contains_any(
-        md_text,
-        tuple(QUALITATIVE_CONTRACT["chart_ready"]["conditional_company_types"]),
-    )
+    capital_intensity = structured_param(md_text, "capital_intensity")
+    cyclicality = structured_param(md_text, "cyclicality")
+    if capital_intensity or cyclicality:
+        return capital_intensity == "capital-hungry" or cyclicality == "强周期"
+    return _contains_any(md_text, tuple(QUALITATIVE_CONTRACT["chart_ready"]["conditional_company_types"]))
 
 
 def _has_chart_ready_metadata_contract(md_text: str) -> bool:
@@ -872,6 +947,23 @@ def _has_chart_ready_metadata_contract(md_text: str) -> bool:
         and re.search(rf"chart_type:\s*(?:{allowed_types})\b", line)
         for line in metadata_lines
     )
+
+
+def _has_chart_routing_metadata_contract(md_text: str) -> bool:
+    if structured_param(md_text, "rating_version") != "2.0":
+        return True
+    lines = _chart_ready_metadata_lines(md_text)
+    if not lines:
+        return False
+    chart_ids: list[str] = []
+    allowed_targets = {"executive_summary", "trend", *(f"dimension_{index}" for index in range(1, 7))}
+    for line in lines:
+        chart_id_match = re.search(r"(?:^|;)\s*chart_id:\s*([a-z0-9][a-z0-9-]*)", line)
+        target_match = re.search(r"(?:^|;)\s*chart_target:\s*([a-z0-9_]+)", line)
+        if not chart_id_match or not target_match or target_match.group(1) not in allowed_targets:
+            return False
+        chart_ids.append(chart_id_match.group(1))
+    return len(chart_ids) == len(set(chart_ids))
 
 
 def _has_sample_level_chart_ready_coverage(md_text: str) -> bool:
@@ -1062,7 +1154,7 @@ def _has_d4_d5_multi_year_review(sections: dict[int, str]) -> bool:
 
 
 def _has_public_output_internal_artifacts(md_text: str) -> bool:
-    patterns = (
+    patterns = [
         r"/Users/[^\s`，。；;|]+",
         r"/tmp/[^\s`，。；;|]+",
         r"output/[^\s`，。；;|]+",
@@ -1071,7 +1163,11 @@ def _has_public_output_internal_artifacts(md_text: str) -> bool:
         r"\be2e\b",
         r"\bfixture\b",
         r"\bvalidator\b",
-    )
+        r"\bCM§\d+",
+        r"\bDP§[A-Za-z0-9]+",
+        r"\bqualitative_(?:evidence|argument_map|content_audit)\.json\b",
+    ]
+    patterns.extend(QUALITATIVE_CONTRACT["public_output"]["forbidden_patterns"])
     return any(re.search(pattern, md_text, flags=re.IGNORECASE) for pattern in patterns)
 
 
@@ -1100,6 +1196,7 @@ def _overlong_body_lines(md_text: str, max_chars: int = 180) -> list[tuple[int, 
             or stripped.startswith("#")
             or stripped.startswith("|")
             or stripped.startswith(">")
+            or stripped.startswith("chart_ready:")
         ):
             continue
         if len(stripped) > max_chars:
@@ -1122,6 +1219,11 @@ def _content_quality_issues(md_text: str, report_type: str) -> list[tuple[str, s
     normalized = _normalize(md_text)
     issues: list[tuple[str, str]] = _finished_report_quality_issues(md_text)
     if report_type == "qualitative":
+        for error in rating_errors(md_text):
+            issues.append((
+                "qualitative_business_quality_rating",
+                "Overall business-quality rating is not canonical or is inconsistent: " + error,
+            ))
         verdict_text = _heading_or_line_text(
             md_text,
             ("Business Quality Verdict", "商业质量总体评级", "商业质量"),
@@ -1191,12 +1293,12 @@ def _content_quality_issues(md_text: str, report_type: str) -> list[tuple[str, s
         if not _has_d2_moat_falsification(dimension_sections_by_index.get(2, "")):
             issues.append((
                 "qualitative_d2_moat_falsification",
-                "D2 moat analysis must include a falsification table covering evidence supporting and weakening the moat, peer checks, and sustainable KPIs.",
+                "D2 moat analysis must combine the falsification table with competing hypotheses, a rejected/retained verdict, and an explicit rating boundary.",
             ))
         if not _has_d2_moat_interrogation_chain(dimension_sections_by_index.get(2, "")):
             issues.append((
                 "qualitative_d2_moat_interrogation_chain",
-                "D2 moat analysis must interrogate the moat through industry map, quantitative validation, supply-side advantage, demand-side weakness, scale boundary, false-advantage filtering, peer checks, and sustainable KPIs.",
+                "D2 moat analysis needs exactly six continuous interrogation rows with question, company mechanism, current judgment and failure signal, followed by a boundary synthesis.",
             ))
         if not _has_d3_cycle_sensitivity_threshold(dimension_sections_by_index.get(3, "")):
             issues.append((
@@ -1288,6 +1390,11 @@ def _content_quality_issues(md_text: str, report_type: str) -> list[tuple[str, s
                 "qualitative_chart_ready_metadata",
                 "Core chart modules must include chart_ready metadata with chart_type, x_axis, series, and unit_map so HTML rendering does not guess chart intent.",
             ))
+        if not _has_chart_routing_metadata_contract(md_text):
+            issues.append((
+                "qualitative_chart_routing_metadata",
+                "Rating v2 reports must give every chart a unique chart_id and an explicit allowed chart_target.",
+            ))
         if not _has_chart_ready_numeric_tables(md_text):
             issues.append((
                 "qualitative_chart_ready_numeric_table",
@@ -1363,6 +1470,11 @@ def _content_quality_issues(md_text: str, report_type: str) -> list[tuple[str, s
                 "qualitative_d6_threshold_calculation_basis",
                 "D6 holding-structure analysis must include trigger thresholds and calculation basis for subsidiaries, investment income, parent-consolidated differences, non-recurring items, or SOTP necessity.",
             ))
+        if not _has_d6_sotp_mode_contract(md_text, dimension_sections_by_index.get(6, "")):
+            issues.append((
+                "qualitative_d6_sotp_mode_contract",
+                "D6 must select a structured SOTP mode and state trigger results, data readiness, decision reason, best feasible analysis, double-counting check, and upgrade trigger.",
+            ))
         if not _has_holding_network_depth(dimension_sections_by_index.get(6, "")):
             issues.append((
                 "qualitative_holding_network_depth",
@@ -1437,7 +1549,7 @@ def _content_quality_issues(md_text: str, report_type: str) -> list[tuple[str, s
         if _has_public_output_internal_artifacts(md_text):
             issues.append((
                 "qualitative_public_output_cleanliness",
-                "Public qualitative reports must not expose local paths or internal workflow artifacts such as WebSearch fallback, acceptance samples, e2e, fixture, or validator.",
+                "Public qualitative reports must not expose source tags, internal evidence IDs, local paths, prompts, validators, fixtures, or workflow-boundary prose.",
             ))
         if _has_channel_reuse_label_leakage(md_text):
             issues.append((

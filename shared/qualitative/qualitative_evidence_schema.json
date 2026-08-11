@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "qualitative_evidence_schema.json",
+  "title": "Qualitative report evidence ledger",
+  "type": "object",
+  "required": ["schema_version", "company", "as_of", "evidence", "gaps"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "company": {"type": "string", "minLength": 1},
+    "as_of": {"type": "string", "format": "date"},
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "claim", "source_type", "source", "locator", "confidence", "scope", "status"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^E[0-9]{3,}$"},
+          "claim": {"type": "string", "minLength": 8},
+          "source_type": {"enum": ["annual_report", "official_filing", "ifind", "computed", "peer_filing", "other"]},
+          "source": {"type": "string", "minLength": 1},
+          "locator": {"type": "string", "minLength": 1},
+          "confidence": {"enum": ["High", "Medium", "Low"]},
+          "scope": {"type": "string", "minLength": 1},
+          "status": {"enum": ["verified", "conflicted", "gap"]},
+          "notes": {"type": "string"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "gaps": {"type": "array", "items": {"type": "string", "minLength": 1}}
+  },
+  "additionalProperties": false
+}

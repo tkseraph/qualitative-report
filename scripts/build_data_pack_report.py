@@ -20,6 +20,11 @@ import pdfplumber
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build data_pack_report.md from pdf_sections.json")
     parser.add_argument("--output-dir", required=True, help="Existing output directory")
+    parser.add_argument(
+        "--force-seed",
+        action="store_true",
+        help="Overwrite data_pack_report.seed.md; never overwrites the manually audited data_pack_report.md",
+    )
     return parser.parse_args()
 
 
@@ -418,9 +423,14 @@ def main() -> None:
     sections = json.loads(read_text(pdf_sections_path))
 
     report = build_report(output_dir, data_pack_text, sections)
-    out_path = output_dir / "data_pack_report.md"
+    out_path = output_dir / "data_pack_report.seed.md"
+    if out_path.exists() and not args.force_seed:
+        raise SystemExit(
+            f"Seed already exists: {out_path}. Use --force-seed to replace only the seed file."
+        )
     out_path.write_text(report, encoding="utf-8")
-    print(f"data_pack_report generated: {out_path}")
+    print(f"UNVERIFIED seed generated: {out_path}")
+    print("Manual source-page review must produce data_pack_report.md before production generation.")
     print("  Hard sections: P13 / P4 / P6 / SUB")
     print(f"  P13 found: {bool(sections.get('P13'))}")
     print(f"  P4 found: {bool(sections.get('P4'))}")

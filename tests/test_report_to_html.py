@@ -158,6 +158,9 @@ def test_parse_report_extracts_sample_level_research_sections():
     assert "数字与叙事的匹配" in report["cross_validation_research"]
     assert "核心矛盾" in report["cross_validation_research"]
     assert "被忽视信号" in report["cross_validation_research"]
+    assert "###" not in report["cross_validation_research"]
+    assert "<h3>数字与叙事的匹配</h3>" in report["cross_validation_research"]
+    assert "<h3>核心矛盾</h3>" in report["cross_validation_research"]
 
 
 
@@ -1696,11 +1699,47 @@ def test_render_report_html_collapses_large_dimension_tables_without_dropping_ev
     html = output_path.read_text(encoding="utf-8")
     assert "正文先给出判断" in html
     assert "表后继续解释现金流质量" in html
-    assert "<details class=\"dense-table-panel\">" in html
+    assert '<details class="dense-table-panel" data-component-role="dense-evidence">' in html
     assert "完整数据表" in html
     assert "<summary>" in html
     assert "2025" in html
     assert "200" in html
+
+
+def test_render_report_html_opens_moat_chain_and_falsification_tables_by_default(tmp_path):
+    md_text = SAMPLE_LEVEL_RESEARCH_MD + """
+## 维度二：竞争优势与护城河
+
+### 护城河六步审讯链
+
+| 步骤 | 审讯问题 | 事实与作用机制 | 当前结论 | 失效信号 |
+|---|---|---|---|---|
+| 1 | 问题一 | 机制一 | 结论一 | 信号一 |
+| 2 | 问题二 | 机制二 | 结论二 | 信号二 |
+| 3 | 问题三 | 机制三 | 结论三 | 信号三 |
+| 4 | 问题四 | 机制四 | 结论四 | 信号四 |
+| 5 | 问题五 | 机制五 | 结论五 | 信号五 |
+| 6 | 问题六 | 机制六 | 结论六 | 信号六 |
+
+### 护城河证伪表
+
+| 支持护城河 | 削弱护城河 | 同业/竞品验证 | 可持续 KPI |
+|---|---|---|---|
+| 支持一 | 削弱一 | 验证一 | KPI一 |
+| 支持二 | 削弱二 | 验证二 | KPI二 |
+| 支持三 | 削弱三 | 验证三 | KPI三 |
+| 支持四 | 削弱四 | 验证四 | KPI四 |
+| 支持五 | 削弱五 | 验证五 | KPI五 |
+"""
+    report_path = tmp_path / "600000_SH_qualitative_report.md"
+    output_path = tmp_path / "600000_SH_qualitative_report.html"
+    report_path.write_text(md_text, encoding="utf-8")
+
+    render_report_html(report_path, output_path, standalone=True)
+
+    html = output_path.read_text(encoding="utf-8")
+    assert '<details class="dense-table-panel" data-component-role="moat-interrogation" open>' in html
+    assert '<details class="dense-table-panel" data-component-role="moat-falsification" open>' in html
 
 
 
@@ -2420,6 +2459,29 @@ moat_existence: true
     values_by_label = {card["label"]: card["value"] for card in cards}
     assert values_by_label["优势存在性"] == "存在"
     assert values_by_label["优势存在性"] != "true"
+
+
+def test_html_verdict_uses_overall_business_quality_instead_of_moat_rating():
+    md_text = """
+## Business Quality Verdict / 商业质量总体评级
+
+**总体评级：B+ / 中等偏强 · 观察。**
+
+## 结构化参数（机器读取 / 附录）
+
+```yaml
+business_quality_grade: B+
+business_quality_label: 中等偏强
+rating_outlook: 观察
+rating_version: 2.0
+moat_rating: 中
+moat_sustainability: 中等可持续
+```
+"""
+    verdict = build_verdict(md_text)
+    assert verdict["verdict_tag"] == "B+ / 中等偏强"
+    assert verdict["verdict_tag"] != "MODERATE"
+    assert "护城河评级 中" in verdict["verdict_text"]
 
 
 def test_render_report_html_does_not_publish_upstream_canonical_by_default(tmp_path):

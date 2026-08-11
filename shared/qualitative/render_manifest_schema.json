@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "render_manifest_schema.json",
+  "title": "Qualitative HTML render manifest",
+  "type": "object",
+  "required": ["schema_version", "source_markdown", "rating", "components", "charts", "validation"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "source_markdown": {"type": "string"},
+    "rating": {"type": "string"},
+    "components": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "charts": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "validation": {
+      "type": "object",
+      "required": ["dimension_count", "raw_markdown_absent", "default_open_roles"],
+      "properties": {
+        "dimension_count": {"type": "integer", "minimum": 0},
+        "raw_markdown_absent": {"type": "boolean"},
+        "default_open_roles": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

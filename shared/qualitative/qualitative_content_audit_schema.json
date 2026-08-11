@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "qualitative_content_audit_schema.json",
+  "title": "Independent qualitative content audit",
+  "type": "object",
+  "required": ["schema_version", "decision", "scores", "section_findings", "allowed_revision_sections"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "decision": {"enum": ["pass", "revise"]},
+    "scores": {
+      "type": "object",
+      "required": ["conclusion_clarity", "mechanism_depth", "evidence_balance", "counterargument_quality", "reader_value", "prose_naturalness"],
+      "additionalProperties": {"type": "integer", "minimum": 1, "maximum": 5}
+    },
+    "section_findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["section", "severity", "finding", "required_change"],
+        "properties": {
+          "section": {"type": "string"},
+          "severity": {"enum": ["blocking", "major", "minor"]},
+          "finding": {"type": "string", "minLength": 8},
+          "required_change": {"type": "string", "minLength": 8}
+        },
+        "additionalProperties": false
+      }
+    },
+    "allowed_revision_sections": {"type": "array", "items": {"type": "string"}, "uniqueItems": true}
+  },
+  "additionalProperties": false
+}

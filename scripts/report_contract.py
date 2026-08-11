@@ -8,7 +8,7 @@ from pathlib import Path
 
 
 CONTRACT_PATH = Path(__file__).resolve().parent.parent / "shared" / "report_contract.json"
-SUPPORTED_SCHEMA_VERSION = 1
+SUPPORTED_SCHEMA_VERSION = 2
 
 
 @lru_cache(maxsize=1)
@@ -39,13 +39,23 @@ def render_qualitative_prompt_contract() -> str:
     d6 = contract["d6"]
     charts = contract["chart_ready"]
     future = contract["future_observation"]
+    rating = contract["business_quality_rating"]
     header = " | ".join(card["header"])
+    rating_values = "；".join(
+        f"{grade} / {item['label']}"
+        for grade, item in rating["grades"].items()
+    )
     return "\n".join([
         "【唯一报告契约（机器校验与生成共用）】",
         f"- 首屏卡固定表头：| {header} |；必含：{'、'.join(card['required_rows'])}。",
         f"- D6 固定小标题：{d6['decision_heading']}；必含：{'、'.join(d6['required_topics'])}。",
+        f"- 总体商业质量评级固定为：{rating_values}；"
+        f"展望仅允许：{' / '.join(rating['outlooks'])}；护城河评级必须与总体评级分开。",
+        f"- SOTP 模式仅允许：{', '.join(d6['modes'])}；无论选择何种模式都必须给出触发结果、"
+        "数据完备度、决策原因、当前最优可行分析、重复计价检查和升级触发条件。",
         f"- 强周期/重资产公司至少 {charts['minimum_modules']} 个可渲染图表，且每个必须显式 chart_ready；"
         f"chart_type 仅允许：{', '.join(charts['allowed_types'])}。",
+        f"- 每个核心图表必须提供唯一 chart_id 和显式 chart_target（字段：{', '.join(charts['routing_metadata'])}），避免按标题猜测网页位置。",
         f"- 未来观察优先级固定为：{' / '.join(future['priority_tiers'])}；"
         f"表格必含：{'、'.join(future['required_columns'])}。",
         f"- 机器字段：{'、'.join(contract['machine_fields'])}。",

@@ -55,6 +55,27 @@ def test_extract_report_metadata_uses_companion_markdown_and_data_date(tmp_path)
     assert "现金转化" in metadata["summary"]
 
 
+def test_extract_report_metadata_prefers_structured_canonical_quality_rating(tmp_path):
+    report = _write_report(tmp_path)
+    markdown = report.with_suffix(".md")
+    markdown.write_text(
+        markdown.read_text(encoding="utf-8")
+        + """
+## 结构化参数（机器读取 / 附录）
+| 参数 | 值 |
+|---|---|
+| business_quality_grade | B+ |
+| business_quality_label | 中等偏强 |
+| rating_outlook | 观察 |
+| rating_version | 2.0 |
+""",
+        encoding="utf-8",
+    )
+
+    metadata = extract_report_metadata(report, "qualitative")
+    assert metadata["verdict"] == "B+ / 中等偏强 · 观察"
+
+
 def test_prepare_report_html_removes_upstream_metadata_and_adds_catalog_link(tmp_path):
     report = _write_report(tmp_path)
     source = report.read_text(encoding="utf-8")

@@ -182,6 +182,16 @@ SECTION_ZONE_PREFERENCES: Dict[str, Dict[str, List[str]]] = {
     "SUB": {"prefer": ["NOTES_ZONE"], "avoid": ["POLICY_ZONE"]},
 }
 
+SECTION_SEMANTIC_ANCHORS: Dict[str, List[str]] = {
+    "P2": ["受限", "账面价值", "合计"],
+    "P3": ["应收账款", "账龄", "坏账准备"],
+    "P4": ["关联方", "关联交易", "采购", "销售"],
+    "P6": ["或有", "承诺", "担保", "诉讼"],
+    "P13": ["非经常性损益", "合计", "扣除"],
+    "MDA": ["经营情况", "收入", "成本", "风险"],
+    "SUB": ["子公司", "联营", "持股比例", "净利润", "营业收入"],
+}
+
 
 # ---------------------------------------------------------------------------
 # Feature #37: PDF text extraction with pdfplumber
@@ -633,6 +643,7 @@ def write_output(
     pdf_path: str,
     total_pages: int,
     output_path: str,
+    section_diagnostics: Optional[Dict[str, dict]] = None,
 ) -> dict:
     """Write pdf_sections.json with 7 sections + metadata.
 
@@ -647,6 +658,7 @@ def write_output(
             "extract_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "sections_found": found_count,
             "sections_total": len(contexts),
+            "section_diagnostics": section_diagnostics or {},
         },
     }
 
@@ -662,6 +674,44 @@ def write_output(
         json.dump(output, f, ensure_ascii=False, indent=2)
 
     return output
+
+
+def build_section_diagnostics(
+    contexts: Dict[str, Optional[str]],
+    section_pages: Dict[str, List[int]],
+) -> Dict[str, dict]:
+    """Describe extraction confidence without hiding ambiguous matches.
+
+    Keyword matching remains a locator, not proof that the correct note was
+    extracted.  These diagnostics give the production preflight a stable way
+    to require manual source-page review for low-confidence sections.
+    """
+    diagnostics: Dict[str, dict] = {}
+    for section_id in ["P2", "P3", "P4", "P6", "P13", "MDA", "SUB"]:
+        text = contexts.get(section_id) or ""
+        anchors = SECTION_SEMANTIC_ANCHORS[section_id]
+        matched_anchors = [anchor for anchor in anchors if anchor in text]
+        keyword_matches = [
+            keyword for keyword in SECTION_KEYWORDS[section_id] if keyword in text
+        ]
+        pages = section_pages.get(section_id, [])
+        if not text or not pages:
+            confidence = "missing"
+        elif keyword_matches and len(matched_anchors) >= 2:
+            confidence = "high"
+        elif keyword_matches or len(matched_anchors) >= 2:
+            confidence = "medium"
+        else:
+            confidence = "low"
+        diagnostics[section_id] = {
+            "confidence": confidence,
+            "best_page": pages[0] if pages else None,
+            "candidate_pages": pages[:5],
+            "matched_keywords": keyword_matches[:5],
+            "matched_anchors": matched_anchors,
+            "manual_review_required": confidence in {"low", "missing"},
+        }
+    return diagnostics
 
 
 # ---------------------------------------------------------------------------
@@ -793,7 +843,14 @@ def run_pipeline(pdf_path: str, output_path: str, verbose: bool = False,
 
     # Step 4: Write output
     print(f"[4/4] Writing output to {output_path}...")
-    result = write_output(contexts, pdf_path, total_pages, output_path)
+    diagnostics = build_section_diagnostics(contexts, section_pages)
+    result = write_output(
+        contexts,
+        pdf_path,
+        total_pages,
+        output_path,
+        section_diagnostics=diagnostics,
+    )
 
     found = result["metadata"]["sections_found"]
     total = result["metadata"]["sections_total"]

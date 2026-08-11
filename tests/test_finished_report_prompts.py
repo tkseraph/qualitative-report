@@ -195,7 +195,7 @@ def test_qualitative_prompt_requires_d4_d5_d6_depth_contracts():
     required_terms = (
         "D4 必须同时覆盖治理红旗、管理层/控制权、资本配置、承诺兑现",
         "D5 必须同时覆盖历史指引、实际兑现、新战略、财务验证、风险措辞变化、沉默信息、重评动作",
-        "D6 必须同时覆盖触发条件、是否展开、子公司、投资收益、SOTP 判断、阈值和计算依据",
+        "D6 必须覆盖触发条件、子公司、投资收益、SOTP 判断、阈值和计算依据",
     )
     for term in required_terms:
         assert term in prompt
@@ -233,7 +233,7 @@ def test_qualitative_prompt_requires_d3_sensitivity_and_d6_threshold_basis():
     for text in (prompt, writing_style):
         assert "D3 必须输出周期/外部变量敏感性表" in text
         assert "当前阶段 → 外部变量 → 财务敏感性 → 预警阈值 → 重评动作" in text
-        assert "D6 必须输出触发阈值和计算依据" in text
+        assert "阈值和计算依据" in text
         assert "投资收益、母合差异、子公司利润、非经常性损益占比" in text
 
 
@@ -244,12 +244,12 @@ def test_qualitative_prompt_requires_d6_sotp_trigger_decision_table():
 
     required_terms = (
         "SOTP 触发决策表",
-        "D6 正文必须使用小标题“### SOTP 触发决策表",
-        "是否触发 SOTP",
-        "为什么暂不触发",
-        "什么条件会触发",
-        "不强行展开完整 SOTP",
-        "子公司利润贡献",
+        "### SOTP 触发决策表",
+        "diagnostic",
+        "数据完备度",
+        "最优可行分析",
+        "重复计价检查",
+        "子公司利润",
         "海外资产回报",
         "分部价值",
         "控股折价",

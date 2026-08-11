@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "reports": {
     "qualitative": {
       "market_scope": "A-share",
@@ -8,22 +8,65 @@
         "required_rows": ["公司本质", "商业质量", "护城河来源", "最大风险", "周期位置", "反证条件"]
       },
       "dimension_headings": ["维度一", "维度二", "维度三", "维度四", "维度五", "维度六"],
+      "business_quality_rating": {
+        "version": "2.0",
+        "grades": {
+          "A": {"label": "优秀", "rank": 6},
+          "A-": {"label": "较强", "rank": 5},
+          "B+": {"label": "中等偏强", "rank": 4},
+          "B": {"label": "中等", "rank": 3},
+          "B-": {"label": "中等偏弱", "rank": 2},
+          "C": {"label": "较弱", "rank": 1},
+          "D": {"label": "不合格", "rank": 0}
+        },
+        "outlooks": ["正面", "稳定", "观察", "负面"],
+        "display_format": "{grade} / {label}",
+        "display_with_outlook_format": "{grade} / {label} · {outlook}"
+      },
       "d6": {
         "decision_heading": "### SOTP 触发决策表",
-        "required_topics": ["是否触发 SOTP", "子公司利润", "投资收益", "母合差异", "非经常性损益", "控股折价", "触发阈值", "计算依据"]
+        "required_topics": ["是否触发 SOTP", "子公司利润", "投资收益", "母合差异", "非经常性损益", "控股折价", "触发阈值", "计算依据"],
+        "modes": ["not_applicable", "diagnostic", "listed_asset_bridge", "full"],
+        "required_decision_fields": [
+          "sotp_mode",
+          "sotp_trigger_results",
+          "sotp_data_readiness",
+          "sotp_decision_reason",
+          "sotp_best_feasible_analysis",
+          "sotp_double_counting_check",
+          "sotp_upgrade_trigger"
+        ]
       },
       "chart_ready": {
         "conditional_company_types": ["强周期", "重资产", "周期公司", "capital-hungry"],
         "minimum_modules": 5,
         "allowed_types": ["line", "bar", "mixed"],
         "required_metadata": ["chart_type", "x_axis", "unit_map"],
+        "routing_metadata": ["chart_id", "chart_target"],
         "required_archetypes": ["业务或区域结构", "资本消耗", "现金转化", "盈利能力趋势", "同业或效率对比"]
       },
       "future_observation": {
         "priority_tiers": ["P0", "P1", "P2"],
         "required_columns": ["优先级", "观察变量", "当前值 / 本地证据", "预警阈值", "触发后的重评动作"]
       },
+      "public_output": {
+        "forbidden_patterns": [
+          "\\[src\\s*:",
+          "\\[source\\s*:",
+          "(?:内部|工作流|生成器|validator|prompt|模型)\\s*(?:边界|说明|约束|提示|检查)",
+          "暂不展开完整\\s*SOTP"
+        ]
+      },
+      "html": {
+        "default_open_table_roles": ["moat-interrogation", "moat-falsification"],
+        "required_dimension_count": 6,
+        "golden_core_chart_count": 6
+      },
       "machine_fields": [
+        "business_quality_grade",
+        "business_quality_label",
+        "rating_outlook",
+        "rating_version",
         "roe_5y_avg",
         "moat_rating",
         "moat_sustainability",
@@ -32,7 +75,14 @@
         "cycle_position",
         "capital_intensity",
         "entry_barrier",
-        "moat_existence"
+        "moat_existence",
+        "sotp_mode",
+        "sotp_trigger_results",
+        "sotp_data_readiness",
+        "sotp_decision_reason",
+        "sotp_best_feasible_analysis",
+        "sotp_double_counting_check",
+        "sotp_upgrade_trigger"
       ]
     },
     "turtle": {"market_scope": "A-share"},

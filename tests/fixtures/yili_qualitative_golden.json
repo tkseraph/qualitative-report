@@ -1,0 +1,34 @@
+{
+  "purpose": "Golden invariants learned from the Yili report; values define quality contracts, not reusable prose.",
+  "rating": {
+    "grade": "B+",
+    "label": "中等偏强",
+    "outlook": "观察",
+    "moat_rating": "中"
+  },
+  "charts": [
+    {"id": "yili-revenue-profit-roe", "target": "executive_summary"},
+    {"id": "yili-segment-mix", "target": "dimension_1"},
+    {"id": "yili-capex-da", "target": "dimension_1"},
+    {"id": "yili-cash-conversion", "target": "dimension_1"},
+    {"id": "yili-peer-efficiency", "target": "dimension_2"},
+    {"id": "yili-quality-trend", "target": "dimension_3"}
+  ],
+  "default_open_components": ["moat-interrogation", "moat-falsification"],
+  "moat_interrogation": {
+    "row_count": 6,
+    "required_columns": ["步骤", "审讯问题", "事实与作用机制", "当前结论", "失效信号"],
+    "requires_post_table_synthesis": true
+  },
+  "moat_falsification": {
+    "requires_competing_hypotheses": true,
+    "requires_retained_and_rejected_verdicts": true,
+    "requires_rating_boundary": true
+  },
+  "sotp": {
+    "mode": "listed_asset_bridge",
+    "requires_double_counting_check": true,
+    "requires_upgrade_trigger": true
+  },
+  "public_forbidden": ["[src:", "CM§", "DP§", "validator", "prompt"]
+}

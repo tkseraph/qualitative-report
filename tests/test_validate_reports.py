@@ -13,12 +13,12 @@ VALID_QUALITATIVE = """
 # 上港集团 · 商业质量评估报告
 
 ## Business Quality Verdict
-商业质量较强，护城河评级较强。核心优势是港口区位和规模网络，最大风险是外贸周期与吞吐量下行压力。
+**总体评级：B+ / 中等偏强 · 稳定。** 护城河评级较强。核心优势是港口区位和规模网络，最大风险是外贸周期与吞吐量下行压力。
 
 | 项目 | 结论 |
 |---|---|
 | 公司本质 | 区域枢纽港口资产 |
-| 商业质量 | B+ / 较强 |
+| 商业质量 | B+ / 中等偏强 · 稳定 |
 | 护城河来源 | 区位、规模、网络 |
 | 最大风险 | 外贸周期与吞吐量下行压力 |
 | 周期位置 | 中性偏逆风 |
@@ -69,7 +69,7 @@ VALID_QUALITATIVE = """
 
 ### 收入质量依赖主业而非非核心扩张
 
-chart_ready: true; chart_type: mixed; x_axis: 业务; bar_series: 收入; line_series: 收入占比, 毛利率; unit_map: 收入=亿元, 收入占比=%, 毛利率=%
+chart_ready: true; chart_id: sipg-business-mix; chart_target: dimension_1; chart_type: mixed; x_axis: 业务; bar_series: 收入; line_series: 收入占比, 毛利率; unit_map: 收入=亿元, 收入占比=%, 毛利率=%
 
 读图结论：主营收入占比越高，港口资产的基础现金流越容易被验证。
 
@@ -100,7 +100,7 @@ chart_ready: true; chart_type: mixed; x_axis: 业务; bar_series: 收入; line_s
 
 ### 图表三：现金质量与资本消耗决定自由现金流弹性
 
-chart_ready: true; chart_type: mixed; x_axis: 年份; bar_series: OCF, FCF; line_series: OCF/净利润, Capex/D&A; unit_map: OCF=亿元, FCF=亿元, OCF/净利润=x, Capex/D&A=x
+chart_ready: true; chart_id: sipg-cash-capex; chart_target: dimension_1; chart_type: mixed; x_axis: 年份; bar_series: OCF, FCF; line_series: OCF/净利润, Capex/D&A; unit_map: OCF=亿元, FCF=亿元, OCF/净利润=x, Capex/D&A=x
 
 读图结论：OCF、FCF、OCF/净利润 和 Capex/D&A 放在一起，才能判断重资产现金质量。
 
@@ -128,7 +128,7 @@ chart_ready: true; chart_type: mixed; x_axis: 年份; bar_series: OCF, FCF; line
 
 ### 图表五：ROE 与自由现金流显示低谷质量未失速
 
-chart_ready: true; chart_type: mixed; x_axis: 年份; bar_series: FCF; line_series: ROE, 毛利率, Capex/D&A; unit_map: FCF=亿元, ROE=%, 毛利率=%, Capex/D&A=x
+chart_ready: true; chart_id: sipg-quality-trend; chart_target: dimension_3; chart_type: mixed; x_axis: 年份; bar_series: FCF; line_series: ROE, 毛利率, Capex/D&A; unit_map: FCF=亿元, ROE=%, 毛利率=%, Capex/D&A=x
 
 读图结论：重资产或强周期公司必须把单年判断放回五年趋势里验证，避免把周期某一年误判为长期质量。
 
@@ -189,6 +189,8 @@ chart_ready: true; chart_type: mixed; x_axis: 年份; bar_series: FCF; line_seri
 
 结论：同业对比说明优势真实但不是无限定价权，异常/伪优势风险在于把周期景气误判为护城河。
 
+如果高回报只来自外贸景气，那么低谷期 ROE 和现金流应同步失速；现有跨期证据不支持该假设。区位与网络优势的假设仍成立，但费率约束和同业替代限制了评级，不足以上调为强护城河。
+
 护城河六步审讯链必须把行业地图、量化验证、护城河来源、伪优势过滤、竞争对标和可持续 KPI 放在同一节里，避免只用一个优势标签替代判断。
 
 | 审讯环节 | 当前证据 | 反向检验 | 投资含义 |
@@ -202,11 +204,26 @@ chart_ready: true; chart_type: mixed; x_axis: 年份; bar_series: FCF; line_seri
 | 同业坐标 | 宁波港和招商港口作对标 | 同业 ROE 更快修复 | 相对强弱需持续复核 |
 | 可持续 KPI | 核心港区份额、ROE、FCF | 指标跌破阈值 | 决定评级维持或下调 |
 
+投资含义是上述要素只有进入连续的因果链，才足以支持护城河评级。
+
+六步审讯按公司事实和作用机制重新归并如下。
+
+| 步骤 | 审讯问题 | 事实与作用机制 | 当前结论 | 失效信号 |
+|---|---|---|---|---|
+| 1. 行业与回报 | 公司是否持续获得超额回报？ | 区域港口竞争稳定，ROE 与现金流仍有跨期支撑 | 回报真实但受周期影响 | ROE 与 FCF 连续两年低于阈值 |
+| 2. 供给与规模 | 区位和规模为何难复制？ | 岸线、集疏运和吞吐网络共同降低单位成本 | 供给侧优势较强但有区域边界 | 份额与单位成本优势同步收窄 |
+| 3. 需求侧 | 客户是否被锁定并接受提价？ | 客户依赖航线网络，但费率仍受贸易和竞争约束 | 需求侧粘性中等 | 降价后吞吐仍持续下降 |
+| 4. 价值兑现 | 优势是否进入利润与现金？ | 主业利润、OCF 和 FCF 共同验证经营兑现 | 兑现成立，资本开支仍是约束 | OCF/净利润与 FCF 同步走弱 |
+| 5. 竞争替代 | 同业能否绕开网络优势？ | 宁波港和招商港口提供区域与资产组合替代 | 非排他优势，不能给垄断溢价 | 同业 ROE 和份额连续反超 |
+| 6. 持续监控 | 哪些变量决定优势继续有效？ | 份额、ROE、FCF 覆盖需求、回报和现金 | 综合护城河较强 | 任两项核心指标跌破阈值 |
+
+这六步说明区位与网络保护现金流下限，并不自然抬高费率上限。投资含义是评级边界取决于份额、回报与自由现金流能否同时维持。
+
 投资含义是 D2 必须先拆行业结构和优势来源，再用反证、同业和 KPI 判断护城河是否可持续。
 
 ### 图表四：同业坐标显示上港优势来自效率而非单纯规模
 
-chart_ready: true; chart_type: mixed; x_axis: 公司; bar_series: 吞吐量; line_series: ROE, 毛利率; unit_map: 吞吐量=万箱, ROE=%, 毛利率=%
+chart_ready: true; chart_id: sipg-peer-efficiency; chart_target: dimension_2; chart_type: mixed; x_axis: 公司; bar_series: 吞吐量; line_series: ROE, 毛利率; unit_map: 吞吐量=万箱, ROE=%, 毛利率=%
 
 读图结论：同业坐标必须同时看规模、ROE 和毛利率，才能判断优势是效率还是单纯体量。
 
@@ -220,7 +237,7 @@ chart_ready: true; chart_type: mixed; x_axis: 公司; bar_series: 吞吐量; lin
 
 ### 图表六：区域吞吐结构 — 主港区份额决定护城河韧性
 
-chart_ready: true; chart_type: mixed; x_axis: 区域; bar_series: 吞吐量; line_series: 收入占比, 毛利率; unit_map: 吞吐量=万箱, 收入占比=%, 毛利率=%
+chart_ready: true; chart_id: sipg-region-share; chart_target: dimension_2; chart_type: mixed; x_axis: 区域; bar_series: 吞吐量; line_series: 收入占比, 毛利率; unit_map: 吞吐量=万箱, 收入占比=%, 毛利率=%
 
 读图结论：主港区吞吐占比越稳定，区位优势越能转化为现金流韧性。
 
@@ -354,6 +371,8 @@ MD&A 审讯表必须把原始说法、财务验证、实际兑现、风险措辞
 ## 维度六：控股结构分析
 **结论：集团结构需要关注，但当前不构成核心折价因素。**
 
+D6 采用 diagnostic 诊断模式，并检查重复计价；当独立资产价值或利润占比触发阈值时升级分析。
+
 D6 的关键是判断子公司、投资收益或 SOTP 是否会改变商业质量结论。
 
 ### SOTP 触发决策表
@@ -459,6 +478,17 @@ D6 的关键是判断子公司、投资收益或 SOTP 是否会改变商业质�
 | capital_intensity | capital-hungry |
 | entry_barrier | 高 |
 | moat_existence | 存在 |
+| business_quality_grade | B+ |
+| business_quality_label | 中等偏强 |
+| rating_outlook | 稳定 |
+| rating_version | 2.0 |
+| sotp_mode | diagnostic |
+| sotp_trigger_results | 子公司利润与投资收益均未触发完整拆分阈值 |
+| sotp_data_readiness | partial |
+| sotp_decision_reason | 独立分部利润与净负债披露不足，当前只做结构诊断 |
+| sotp_best_feasible_analysis | 已比较子公司利润、投资收益、母合差异和控股结构 |
+| sotp_double_counting_check | 已并表子公司不重复加回，关联平台只作交叉校验 |
+| sotp_upgrade_trigger | 独立资产价值超过市值10%或利润贡献超过30%时升级 |
 """
 
 
@@ -901,8 +931,8 @@ def test_qualitative_report_requires_chart_evidence_investment_meaning():
 
 def test_qualitative_report_requires_chart_ready_metadata_for_core_chart_modules():
     text = VALID_QUALITATIVE.replace(
-        "chart_ready: true; chart_type: mixed; x_axis: 业务; bar_series: 收入; line_series: 收入占比, 毛利率; unit_map: 收入=亿元, 收入占比=%, 毛利率=%\n\n",
-        "chart_ready: true; x_axis: 业务; bar_series: 收入; line_series: 收入占比, 毛利率; unit_map: 收入=亿元, 收入占比=%, 毛利率=%\n\n",
+        "chart_ready: true; chart_id: sipg-business-mix; chart_target: dimension_1; chart_type: mixed; x_axis: 业务; bar_series: 收入; line_series: 收入占比, 毛利率; unit_map: 收入=亿元, 收入占比=%, 毛利率=%\n\n",
+        "chart_ready: true; chart_id: sipg-business-mix; chart_target: dimension_1; x_axis: 业务; bar_series: 收入; line_series: 收入占比, 毛利率; unit_map: 收入=亿元, 收入占比=%, 毛利率=%\n\n",
     )
 
     result = validate_markdown(text, "qualitative")
@@ -1264,6 +1294,12 @@ def test_qualitative_report_requires_d2_moat_interrogation_chain():
 """,
         "\n",
     )
+    text = re.sub(
+        r"\n六步审讯按公司事实和作用机制重新归并如下。.*?投资含义是评级边界取决于份额、回报与自由现金流能否同时维持。\n",
+        "\n",
+        text,
+        flags=re.DOTALL,
+    )
 
     result = validate_markdown(text, "qualitative")
 
@@ -1549,6 +1585,10 @@ D6 的关键是判断子公司、投资收益或 SOTP 是否会改变商业质�
         VALID_QUALITATIVE,
         flags=re.DOTALL,
     )
+    text = text.replace(
+        "D6 采用 diagnostic 诊断模式，并检查重复计价；当独立资产价值或利润占比触发阈值时升级分析。",
+        "D6 采用 diagnostic 诊断模式，并检查重复计价。",
+    )
 
     result = validate_markdown(text, "qualitative")
 
@@ -1712,6 +1752,51 @@ def test_qualitative_report_requires_limitations_and_public_clean_sources():
     assert "qualitative_public_output_cleanliness" in path_result.missing
 
 
+def test_qualitative_report_rejects_internal_source_tags_and_workflow_prose():
+    source_tagged = VALID_QUALITATIVE.replace(
+        "年报与 Tushare。",
+        "年报与 Tushare。[src: 年报P.21-22]",
+    )
+    assert "qualitative_public_output_cleanliness" in validate_markdown(
+        source_tagged, "qualitative"
+    ).missing
+
+    workflow_leak = VALID_QUALITATIVE.replace(
+        "年报与 Tushare。",
+        "年报与 Tushare。内部工作流说明边界如下。",
+    )
+    assert "qualitative_public_output_cleanliness" in validate_markdown(
+        workflow_leak, "qualitative"
+    ).missing
+
+
+def test_qualitative_report_rejects_mismatched_letter_and_text_rating():
+    text = VALID_QUALITATIVE.replace(
+        "| business_quality_label | 中等偏强 |",
+        "| business_quality_label | 较强 |",
+    )
+    result = validate_markdown(text, "qualitative")
+    assert "qualitative_business_quality_rating" in result.missing
+
+
+def test_qualitative_report_rejects_table_only_moat_falsification():
+    text = VALID_QUALITATIVE.replace(
+        "如果高回报只来自外贸景气，那么低谷期 ROE 和现金流应同步失速；现有跨期证据不支持该假设。区位与网络优势的假设仍成立，但费率约束和同业替代限制了评级，不足以上调为强护城河。",
+        "证据项目见表。",
+    )
+    result = validate_markdown(text, "qualitative")
+    assert "qualitative_d2_moat_falsification" in result.missing
+
+
+def test_qualitative_report_rejects_vague_sotp_mode_fields():
+    text = VALID_QUALITATIVE.replace(
+        "| sotp_decision_reason | 独立分部利润与净负债披露不足，当前只做结构诊断 |\n",
+        "",
+    )
+    result = validate_markdown(text, "qualitative")
+    assert "qualitative_d6_sotp_mode_contract" in result.missing
+
+
 def test_qualitative_report_requires_machine_readable_appendix_fields():
     text = VALID_QUALITATIVE.replace("| management_rating | 合格 |\n", "")
     result = validate_markdown(text, "qualitative")
@@ -1837,8 +1922,8 @@ def test_qualitative_report_rejects_overlong_body_lines_for_wechat_readability()
 
 def test_qualitative_first_screen_requires_advantage_and_risk():
     text = VALID_QUALITATIVE.replace(
-        "商业质量较强，护城河评级较强。核心优势是港口区位和规模网络，最大风险是外贸周期与吞吐量下行压力。",
-        "商业质量较强，护城河评级较强。公司经营稳健。",
+        "**总体评级：B+ / 中等偏强 · 稳定。** 护城河评级较强。核心优势是港口区位和规模网络，最大风险是外贸周期与吞吐量下行压力。",
+        "**总体评级：B+ / 中等偏强 · 稳定。** 公司经营稳健。",
     ).replace(
         "公司具备区位和规模优势，但仍受全球贸易周期影响。核心判断是港口资产质量较强，主要约束是吞吐量和费率弹性有限。",
         "公司经营稳健，资产质量较好。",

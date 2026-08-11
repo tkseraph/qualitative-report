@@ -40,8 +40,8 @@ def test_step5_prompt_wires_budget_provenance_and_advisory_audit():
     for term in (
         str(OUTPUT_DIR / "computed_metrics.md"),
         "CM§1-CM§5",
-        "[src: CM§N]",
-        "数字溯源汇总",
+        "不得出现 `[src: ...]`",
+        "qualitative_evidence.json",
         "lead-with-numbers",
         "只能作历史经验参考",
         "cleanroom_audit.md",
@@ -250,7 +250,7 @@ def test_step5_prompt_requires_d4_d5_d6_depth_contracts():
     for term in (
         "D4 必须同时覆盖治理红旗、管理层/控制权、资本配置、承诺兑现",
         "D5 必须同时覆盖历史指引、实际兑现、新战略、财务验证、风险措辞变化、沉默信息、重评动作",
-        "D6 必须同时覆盖触发条件、是否展开、子公司、投资收益、SOTP 判断、阈值和计算依据",
+        "D6 必须同时覆盖触发条件、子公司、投资收益、SOTP 判断、阈值和计算依据",
     ):
         assert term in prompt
 
@@ -263,8 +263,8 @@ def test_step5_prompt_requires_per_dimension_company_specific_evidence_and_thres
         "不得只写通用框架语",
         "D3 必须输出周期/外部变量敏感性表",
         "当前阶段 → 外部变量 → 财务敏感性 → 预警阈值 → 重评动作",
-        "D6 必须输出触发阈值和计算依据",
-        "投资收益、母合差异、子公司利润、非经常性损益占比",
+        "触发测试、数据完备度、决策原因",
+        "共享资源或关联持股的重复计价检查",
     ):
         assert term in prompt
 
@@ -311,7 +311,7 @@ def test_step5_prompt_requires_review_tables_limitations_and_public_cleanliness(
         "数据口径冲突、同业数据缺口、披露不足事项及后续复核动作",
         "不得出现本地绝对路径",
         "不得出现 WebSearch fallback",
-        "不得出现 acceptance samples",
+        "acceptance samples",
     ):
         assert term in prompt
 
@@ -462,7 +462,7 @@ def test_step5_prompt_requires_d3_summary_and_d6_trigger_heading_contract():
     for term in (
         "D3 的本章小结必须保留在维度三章节内部",
         "不得把近五年质量趋势作为独立二级标题插入 D3 和本章小结之间",
-        "D6 正文必须使用小标题“### SOTP 触发决策表”",
+        "D6 必须使用小标题“### SOTP 触发决策表”",
     ):
         assert term in prompt
 

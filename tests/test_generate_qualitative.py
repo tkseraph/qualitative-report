@@ -109,3 +109,14 @@ def test_generate_qualitative_precomputes_metrics_in_prompt_only_mode(tmp_path, 
     assert computed.exists()
     assert "CM§1" in computed.read_text(encoding="utf-8")
     assert f"[generate] computed metrics: {computed}" in capsys.readouterr().out
+
+
+def test_generate_qualitative_production_requires_audited_evidence_inputs(tmp_path, capsys):
+    output_dir = tmp_path / "output" / "300628_yilian"
+    output_dir.mkdir(parents=True)
+    (output_dir / "data_pack_market.md").write_text("| 股票代码 | 300628.SZ |\n", encoding="utf-8")
+    (output_dir / "annual_report.pdf").write_bytes(b"%PDF-1.4\n")
+    (output_dir / "pdf_sections.json").write_text("{}", encoding="utf-8")
+
+    assert main(["--output-dir", str(output_dir), "--profile", "production"]) == 2
+    assert "production preflight failed" in capsys.readouterr().out

@@ -1,13 +1,27 @@
-# 定性分析结构化参数输出 Schema（v1.1）
+# 定性分析结构化参数输出 Schema（v2.0）
 
 > 定义定性分析模块输出的标准化参数。下游投资策略（龟龟、烟蒂等）通过读取该参数表获取定性结论，
 > 各策略可在自己的 interface 文件中定义额外的映射规则。
 >
-> v1.1 更新：D2 新增行业地图、量化验证、Greenwald 三维框架、竞争对手对比、护城河监控锚点。
+> v2.0 更新：总体商业质量评级采用统一的“字母 / 文字”双轨体系并与护城河评级分离；
+> D6 用明确的 SOTP 模式和决策字段替代含混的“暂不展开”。
 
 ---
 
 ## 参数定义
+
+### 总体商业质量评级（报告级）
+
+| 参数 | 类型 | 值域 | 说明 |
+|------|------|------|------|
+| business_quality_grade | enum | A / A- / B+ / B / B- / C / D | 总体商业质量字母档位 |
+| business_quality_label | enum | 优秀 / 较强 / 中等偏强 / 中等 / 中等偏弱 / 较弱 / 不合格 | 与字母档位一一对应的中文结论 |
+| rating_outlook | enum | 正面 / 稳定 / 观察 / 负面 | 未来 12-24 个月结论变化方向，不混入评级本身 |
+| rating_version | string | 2.0 | 评级体系版本 |
+
+固定映射为：`A / 优秀`、`A- / 较强`、`B+ / 中等偏强`、`B / 中等`、
+`B- / 中等偏弱`、`C / 较弱`、`D / 不合格`。展示格式为“字母 / 文字”，可在其后追加“· 展望”。
+`moat_rating` 只评价护城河，不得替代总体商业质量评级。
 
 ### D1：商业模式与资本特征
 
@@ -103,6 +117,13 @@
 | 参数 | 类型 | 值域 | 说明 |
 |------|------|------|------|
 | holding_structure | bool | true / false | 是否适用控股结构分析 |
+| sotp_mode | enum | not_applicable / diagnostic / listed_asset_bridge / full | D6 实际采用的分析深度 |
+| sotp_trigger_results | string / object | 逐项触发结论 | 子公司利润、投资收益、母合差异、非经常项、分部价值等触发测试 |
+| sotp_data_readiness | enum | sufficient / partial / insufficient / not_applicable | 完整 SOTP 所需数据的完备程度 |
+| sotp_decision_reason | string | 明确结论 | 为什么选择当前模式，禁止只写“暂不展开” |
+| sotp_best_feasible_analysis | string | 明确结论 | 现有证据下已经完成的最优可行分析 |
+| sotp_double_counting_check | string | 明确结论 | 共享渠道、品牌、供应链、净现金和关联持股的重复计价检查 |
+| sotp_upgrade_trigger | string | 可观测阈值 | 何种数据或业务变化会升级到更深模式 |
 | sotp_value_mm | float / null | 百万元 | SOTP 估值（不适用时为 null） |
 | sotp_discount_pct | float / null | 百分比 | 控股折价率（不适用时为 null） |
 
@@ -120,7 +141,8 @@
 - **烟蒂策略**：`strategies/cigarbutt/references/cigarbutt_interface.md` 定义 output_schema → 烟蒂支柱评分的映射
 
 ### 版本兼容
-- Schema 版本号：v1.1
+- Schema 版本号：v2.0
+- v1.1 → v2.0 变更：新增总体商业质量评级、评级展望、评级版本，以及 D6 SOTP 模式与决策字段；总体评级与 `moat_rating` 分离
 - v1.0 → v1.1 变更：D2 新增 market_cr4, entry_barrier, roe_5y_avg, moat_existence, moat_evidence_strength, moat_framework_primary, supply_side_rating, demand_side_rating, scale_economy_rating, false_advantages, competitor_ranking, advantage_gap_sustainability, moat_sustainability, moat_monitor_kpis；moat_rating 值域扩展为 强/较强/中/弱
 - 新增参数向后兼容（下游策略忽略未知参数）
 - 删除/改名参数需同步更新所有策略的 interface 文件
