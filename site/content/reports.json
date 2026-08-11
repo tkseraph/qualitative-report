@@ -1,5 +1,21 @@
 [
   {
+    "id": "600887-sh-qualitative-2026-08-11",
+    "company_name": "伊利股份",
+    "stock_code": "600887.SH",
+    "report_type": "qualitative",
+    "report_type_label": "商业质量评估",
+    "title": "伊利股份（600887.SH）商业质量评估报告",
+    "summary": "伊利是以全国渠道、品牌矩阵和乳业供应链，把高频乳制品消费转化为规模利润和现金流的资本密集型消费龙头。",
+    "verdict": "B+ / 中等偏强 · 观察",
+    "industry": "乳制品",
+    "exchange": "SSE",
+    "analysis_date": "2026-08-11",
+    "published_at": "2026-08-11",
+    "public_path": "reports/600887-sh/qualitative/2026-08-11/index.html",
+    "content_path": "reports/600887-sh/qualitative/2026-08-11/index.html"
+  },
+  {
     "id": "002831-sz-qualitative-2026-06-21",
     "company_name": "裕同科技",
     "stock_code": "002831.SZ",
