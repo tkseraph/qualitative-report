@@ -3,11 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{ config.site_name }} · 投研报告目录</title>
+  <title>{{ config.registered_site_name }} · {{ config.site_name }} · 投研报告目录</title>
   <meta name="description" content="{{ config.site_description }}">
+  <meta name="application-name" content="{{ config.registered_site_name }}">
   {% if config.base_url %}
   <link rel="canonical" href="{{ config.base_url }}/">
-  <meta property="og:title" content="{{ config.site_name }} · 投研报告目录">
+  <meta property="og:title" content="{{ config.registered_site_name }} · {{ config.site_name }} · 投研报告目录">
+  <meta property="og:site_name" content="{{ config.registered_site_name }}">
   <meta property="og:description" content="{{ config.site_description }}">
   <meta property="og:type" content="website">
   <meta property="og:url" content="{{ config.base_url }}/">
@@ -26,7 +28,7 @@
         <span class="brand-mark">研</span>
         <span>
           <strong>{{ config.site_name }}</strong>
-          <small>RESEARCH ARCHIVE</small>
+          <small>{{ config.registered_site_name }} · RESEARCH ARCHIVE</small>
         </span>
       </a>
       <span class="masthead-status"><i></i> Independent research</span>
@@ -129,11 +131,12 @@
       <div>
         <strong>{{ config.site_name }}</strong>
         <p>{{ config.site_description }}</p>
+        <span class="registered-site-name">备案网站名称：{{ config.registered_site_name }}</span>
       </div>
       <div class="footer-legal">
-        <p>仅供研究交流，不构成任何投资建议。市场有风险，决策需独立判断。</p>
+        <p>个人非经营性研究记录，不提供证券投资咨询或交易服务；内容不构成任何投资建议。</p>
         {% if config.icp_number %}<a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">{{ config.icp_number }}</a>{% endif %}
-        {% if config.public_security_number %}<span>{{ config.public_security_number }}</span>{% endif %}
+        {% if config.public_security_number and config.public_security_url %}<a href="{{ config.public_security_url }}" target="_blank" rel="noopener noreferrer">{{ config.public_security_number }}</a>{% elif config.public_security_number %}<span>{{ config.public_security_number }}</span>{% endif %}
       </div>
     </div>
   </footer>

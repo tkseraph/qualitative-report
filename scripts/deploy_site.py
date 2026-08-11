@@ -17,9 +17,9 @@ from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 try:
-    from .site_builder import build_site
+    from .site_builder import build_site, load_site_config
 except ImportError:  # pragma: no cover - direct script execution
-    from site_builder import build_site
+    from site_builder import build_site, load_site_config
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -208,14 +208,19 @@ def _switch_release(args: argparse.Namespace, release: str, *, expected_files: i
     _ssh(args, "set -eu; " + "; ".join(checks))
 
 
-def _health_check(url: str, *, attempts: int = 5) -> None:
+def _health_check(
+    url: str,
+    *,
+    attempts: int = 5,
+    expected_markers: tuple[str, ...] = ("价值涌现",),
+) -> None:
     error = "unknown response"
     for attempt in range(attempts):
         try:
             request = Request(url, headers={"User-Agent": "value-emergence-deployer/1"})
             with urlopen(request, timeout=10) as response:
                 body = response.read().decode("utf-8", errors="replace")
-                if response.status == 200 and "<title>价值涌现 · 投研报告目录</title>" in body:
+                if response.status == 200 and all(marker in body for marker in expected_markers):
                     return
                 error = f"unexpected HTTP {response.status} or page marker"
         except (OSError, URLError) as exc:
@@ -242,7 +247,17 @@ def deploy(args: argparse.Namespace) -> str:
     _switch_release(args, release, expected_files=file_count)
     health_url = args.health_url or f"http://{args.host}/"
     try:
-        _health_check(health_url)
+        config = load_site_config(PROJECT_ROOT / "site")
+        expected_markers = tuple(
+            value
+            for value in (
+                config.get("site_name", ""),
+                config.get("registered_site_name", ""),
+                config.get("icp_number", ""),
+            )
+            if value
+        )
+        _health_check(health_url, expected_markers=expected_markers)
     except DeployError:
         if previous and previous != release:
             _switch_release(args, previous)

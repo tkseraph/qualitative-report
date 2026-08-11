@@ -29,7 +29,7 @@ REPORT_TYPES = {
 PUBLICATION_SHELL_CSS = """
 .publication-shell{position:relative;z-index:50;background:#171916;color:#f4f1e9;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;border-bottom:1px solid rgba(255,255,255,.14)}
 .publication-shell-inner{max-width:1180px;margin:0 auto;min-height:52px;padding:0 24px;display:flex;align-items:center;justify-content:space-between;gap:18px}
-.publication-shell a{color:inherit;text-decoration:none}.publication-shell-brand{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;letter-spacing:.04em}.publication-shell-brand i{width:24px;height:24px;display:grid;place-items:center;background:#f4f1e9;color:#171916;font-family:'Songti SC','STSong',serif;font-style:normal}.publication-shell-meta{color:rgba(244,241,233,.62);font-size:11px}.publication-shell-meta a{margin-left:12px;color:#f0b2a8}.publication-return{padding:48px 24px 56px;text-align:center;background:#f4f1e9;border-top:1px solid rgba(23,25,22,.16);font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif}.publication-return a{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:48px;padding:0 24px;background:#171916;color:#f4f1e9!important;text-decoration:none!important;font-size:14px;font-weight:600;letter-spacing:.03em;border:1px solid #171916;transition:background .18s ease,color .18s ease}.publication-return a:hover{background:#a33b2e;border-color:#a33b2e}.publication-return a:focus-visible{outline:3px solid rgba(163,59,46,.3);outline-offset:4px}@media(max-width:640px){.publication-shell-inner{padding:0 14px}.publication-shell-meta span{display:none}.publication-return{padding:36px 16px 44px}.publication-return a{width:100%;max-width:360px}}
+.publication-shell a{color:inherit;text-decoration:none}.publication-shell-brand{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:600;letter-spacing:.04em}.publication-shell-brand i{width:24px;height:24px;display:grid;place-items:center;background:#f4f1e9;color:#171916;font-family:'Songti SC','STSong',serif;font-style:normal}.publication-shell-brand>span{display:flex;flex-direction:column;gap:1px}.publication-shell-brand small{color:rgba(244,241,233,.56);font-size:9px;font-weight:400;letter-spacing:.04em}.publication-shell-meta{color:rgba(244,241,233,.62);font-size:11px}.publication-shell-meta a{margin-left:12px;color:#f0b2a8}.publication-return{padding:48px 24px 56px;text-align:center;background:#f4f1e9;border-top:1px solid rgba(23,25,22,.16);font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif}.publication-return a{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:48px;padding:0 24px;background:#171916;color:#f4f1e9!important;text-decoration:none!important;font-size:14px;font-weight:600;letter-spacing:.03em;border:1px solid #171916;transition:background .18s ease,color .18s ease}.publication-return a:hover{background:#a33b2e;border-color:#a33b2e}.publication-return a:focus-visible{outline:3px solid rgba(163,59,46,.3);outline-offset:4px}@media(max-width:640px){.publication-shell-inner{padding:0 14px}.publication-shell-meta span{display:none}.publication-return{padding:36px 16px 44px}.publication-return a{width:100%;max-width:360px}}
 """.strip()
 
 
@@ -216,10 +216,12 @@ def prepare_report_html(
     cleaned = re.sub(r"</head>", "\n".join(metadata_tags) + "\n</head>", cleaned, count=1, flags=re.IGNORECASE)
 
     home_href = "../../../../index.html"
+    registered_name = config.get("registered_site_name", "")
+    registered_label = f"<small>{html_lib.escape(registered_name)}</small>" if registered_name else ""
     shell = (
         '<div class="publication-shell">'
         '<div class="publication-shell-inner">'
-        f'<a class="publication-shell-brand" href="{home_href}"><i>研</i><span>{html_lib.escape(config["site_name"])}</span></a>'
+        f'<a class="publication-shell-brand" href="{home_href}"><i>研</i><span>{html_lib.escape(config["site_name"])}{registered_label}</span></a>'
         '<div class="publication-shell-meta">'
         f'<span>{html_lib.escape(metadata["report_type_label"])} · {html_lib.escape(metadata["analysis_date"])}</span>'
         f'<a href="{home_href}">返回报告目录</a>'

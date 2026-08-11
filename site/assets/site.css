@@ -525,6 +525,13 @@ input {
   line-height: 1.7;
 }
 
+.footer-inner .registered-site-name {
+  display: block;
+  margin-top: 10px;
+  color: rgba(251, 250, 246, 0.46);
+  font-size: 11px;
+}
+
 .footer-legal {
   text-align: right;
 }

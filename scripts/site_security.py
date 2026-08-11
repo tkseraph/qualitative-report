@@ -165,6 +165,10 @@ def inspect_public_tree(public_root: Path, *, known_secrets: Iterable[str] = ())
         issues = inspect_public_text(
             path.read_text(encoding="utf-8", errors="ignore"),
             known_secrets=known_secrets,
+            require_report_contract=(
+                path.suffix.lower() in {".html", ".htm"}
+                and "reports" in path.relative_to(public_root).parts
+            ),
         )
         if issues:
             findings[path.relative_to(public_root).as_posix()] = issues

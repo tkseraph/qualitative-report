@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import argparse
+import html as html_lib
 import json
+import re
 import shutil
 import tempfile
 from collections import Counter
@@ -70,7 +72,14 @@ def load_site_config(site_root: Path) -> dict[str, str]:
     config = _read_json(site_root / "config.json")
     if not isinstance(config, dict):
         raise SiteBuildError("site/config.json must contain a JSON object")
-    required = {"site_name", "site_tagline", "site_description", "base_url"}
+    required = {
+        "site_name",
+        "registered_site_name",
+        "site_tagline",
+        "site_description",
+        "base_url",
+        "icp_number",
+    }
     missing = sorted(required - set(config))
     if missing:
         raise SiteBuildError(f"site/config.json missing fields: {', '.join(missing)}")
@@ -115,6 +124,117 @@ def _public_url(public_path: str) -> str:
     if path.endswith("/index.html"):
         return path[: -len("index.html")]
     return path
+
+
+PUBLIC_COMPLIANCE_CSS = """.publication-shell-brand>span{display:flex;flex-direction:column;gap:1px}.publication-shell-brand small{color:rgba(244,241,233,.56);font-size:9px;font-weight:400;letter-spacing:.04em}.publication-compliance{padding:28px 24px;text-align:center;background:#171916;color:#f4f1e9;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif}.publication-compliance strong,.publication-compliance span{display:block}.publication-compliance strong{font-family:'Songti SC','STSong',serif;font-size:16px}.publication-compliance span,.publication-compliance p,.publication-compliance a{margin:6px 0 0;color:rgba(244,241,233,.64);font-size:11px;line-height:1.7}.publication-compliance a{display:inline-block}.publication-compliance+.publication-return{border-top:0}"""
+
+
+def _report_absolute_url(config: dict[str, str], public_path: str) -> str:
+    base_url = config.get("base_url", "")
+    return urljoin(f"{base_url.rstrip('/')}/", _public_url(public_path)) if base_url else ""
+
+
+def _prepare_public_report(
+    source_html: str,
+    *,
+    config: dict[str, str],
+    report: dict[str, Any],
+) -> str:
+    """Refresh site-level identity, public metadata, and legal information."""
+    cleaned = re.sub(r"\s*<link\s+rel=[\"']canonical[\"'][^>]*>\s*", "\n", source_html, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s*<meta\s+property=[\"']og:url[\"'][^>]*>\s*", "\n", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s*<meta\s+property=[\"']og:site_name[\"'][^>]*>\s*", "\n", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s*<meta\s+name=[\"']application-name[\"'][^>]*>\s*", "\n", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s*<meta\s+name=[\"']robots[\"'][^>]*>\s*", "\n", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(
+        r"\s*<style\s+id=[\"']publication-compliance-style[\"'][^>]*>.*?</style>\s*",
+        "\n",
+        cleaned,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    cleaned = re.sub(
+        r"\s*<section\s+class=[\"']publication-compliance[\"'][^>]*>.*?</section>\s*",
+        "\n",
+        cleaned,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+
+    registered_name = config["registered_site_name"]
+    site_name = config["site_name"]
+
+    def update_title(match: re.Match[str]) -> str:
+        title = match.group(1).strip()
+        suffix = f" · {registered_name} · {site_name}"
+        return f"<title>{title if registered_name in title else title + suffix}</title>"
+
+    cleaned = re.sub(r"<title>(.*?)</title>", update_title, cleaned, count=1, flags=re.IGNORECASE | re.DOTALL)
+
+    canonical = _report_absolute_url(config, str(report["public_path"]))
+    metadata_tags = [
+        f'<meta name="application-name" content="{html_lib.escape(registered_name, quote=True)}">',
+        f'<meta property="og:site_name" content="{html_lib.escape(registered_name, quote=True)}">',
+    ]
+    if canonical:
+        metadata_tags.extend(
+            (
+                f'<link rel="canonical" href="{html_lib.escape(canonical, quote=True)}">',
+                f'<meta property="og:url" content="{html_lib.escape(canonical, quote=True)}">',
+                '<meta name="robots" content="index,follow">',
+            )
+        )
+    else:
+        metadata_tags.append('<meta name="robots" content="noindex,nofollow">')
+    metadata_tags.append(f'<style id="publication-compliance-style">{PUBLIC_COMPLIANCE_CSS}</style>')
+    if not re.search(r"</head>", cleaned, re.IGNORECASE):
+        raise SiteBuildError(f"Published report has no closing head tag: {report['public_path']}")
+    cleaned = re.sub(
+        r"</head>",
+        "\n".join(metadata_tags) + "\n</head>",
+        cleaned,
+        count=1,
+        flags=re.IGNORECASE,
+    )
+
+    brand = f"{html_lib.escape(site_name)}<small>{html_lib.escape(registered_name)}</small>"
+    cleaned = re.sub(
+        r'(<a\s+class=[\"\']publication-shell-brand[\"\'][^>]*>\s*<i>.*?</i>\s*<span>).*?(</span>\s*</a>)',
+        lambda match: match.group(1) + brand + match.group(2),
+        cleaned,
+        count=1,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+
+    legal_links = ""
+    if config.get("icp_number"):
+        legal_links += (
+            '<a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">'
+            f'{html_lib.escape(config["icp_number"])}</a>'
+        )
+    if config.get("public_security_number"):
+        number = html_lib.escape(config["public_security_number"])
+        public_security_url = config.get("public_security_url", "")
+        if public_security_url:
+            legal_links += (
+                f'<a href="{html_lib.escape(public_security_url, quote=True)}" target="_blank" '
+                f'rel="noopener noreferrer">{number}</a>'
+            )
+        else:
+            legal_links += f"<span>{number}</span>"
+    compliance = (
+        '<section class="publication-compliance" aria-label="网站备案与内容说明">'
+        f'<strong>{html_lib.escape(registered_name)}</strong>'
+        f'<span>{html_lib.escape(site_name)}</span>'
+        '<p>个人非经营性研究记录，不提供证券投资咨询或交易服务；内容不构成任何投资建议。</p>'
+        f"{legal_links}</section>"
+    )
+    bottom_return = '<div class="publication-return">'
+    if bottom_return in cleaned:
+        cleaned = cleaned.replace(bottom_return, compliance + "\n" + bottom_return, 1)
+    elif re.search(r"</body>", cleaned, re.IGNORECASE):
+        cleaned = re.sub(r"</body>", compliance + "\n</body>", cleaned, count=1, flags=re.IGNORECASE)
+    else:
+        raise SiteBuildError(f"Published report has no closing body tag: {report['public_path']}")
+    return "\n".join(line.rstrip() for line in cleaned.splitlines()) + "\n"
 
 
 def _prepare_reports(reports: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -201,7 +321,14 @@ def build_site(
                 raise SiteBuildError(f"Missing approved report artifact: {source}")
             destination = staging / str(report["public_path"])
             destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, destination)
+            destination.write_text(
+                _prepare_public_report(
+                    source.read_text(encoding="utf-8"),
+                    config=config,
+                    report=report,
+                ),
+                encoding="utf-8",
+            )
 
         (staging / "index.html").write_text(_render_index(site_root, config, reports), encoding="utf-8")
         public_manifest = [

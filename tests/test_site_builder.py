@@ -19,11 +19,17 @@ def _site_project(tmp_path: Path) -> Path:
 
 def test_build_site_writes_categorized_catalog_and_private_robots(tmp_path):
     project_root = _site_project(tmp_path)
+    config_path = project_root / "site" / "config.json"
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+    config["base_url"] = ""
+    config_path.write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
 
     output = build_site(project_root)
 
     html = (output / "index.html").read_text(encoding="utf-8")
-    assert "<title>价值涌现 · 投研报告目录</title>" in html
+    assert "<title>小付的笔记 · 价值涌现 · 投研报告目录</title>" in html
+    assert "备案网站名称：小付的笔记" in html
+    assert "京ICP备202605015号-1" in html
     assert "研究商业本质" in html
     assert "寻找长期价值" in html
     assert "让价值从证据中" not in html
@@ -36,6 +42,48 @@ def test_build_site_writes_categorized_catalog_and_private_robots(tmp_path):
     assert "估值研究" in html
     assert 'content="noindex,nofollow"' in html
     assert (output / "robots.txt").read_text(encoding="utf-8") == "User-agent: *\nDisallow: /\n"
+
+
+def test_build_site_refreshes_public_report_identity_and_metadata(tmp_path):
+    project_root = _site_project(tmp_path)
+    site_root = project_root / "site"
+    content_path = Path("reports/688187-sh/qualitative/2026-06-18/index.html")
+    source = site_root / "content" / content_path
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_text(
+        "<!doctype html><html><head><title>时代电气</title>"
+        '<meta name="robots" content="noindex,nofollow"></head>'
+        '<body><div class="publication-shell"><a class="publication-shell-brand" href="#">'
+        "<i>研</i><span>价值涌现</span></a></div>"
+        '<p>本报告不构成投资建议。</p><div class="publication-return">返回报告目录</div>'
+        "</body></html>",
+        encoding="utf-8",
+    )
+    manifest = [
+        {
+            "id": "688187-sh-qualitative-2026-06-18",
+            "company_name": "时代电气",
+            "stock_code": "688187.SH",
+            "report_type": "qualitative",
+            "title": "时代电气报告",
+            "summary": "摘要",
+            "analysis_date": "2026-06-18",
+            "published_at": "2026-08-02",
+            "public_path": content_path.as_posix(),
+            "content_path": content_path.as_posix(),
+        }
+    ]
+    (site_root / "content" / "reports.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+    output = build_site(project_root)
+
+    detail = (output / content_path).read_text(encoding="utf-8")
+    assert "<title>时代电气 · 小付的笔记 · 价值涌现</title>" in detail
+    assert 'content="index,follow"' in detail
+    assert 'href="https://jiazhiyongxian.cn/reports/688187-sh/qualitative/2026-06-18/"' in detail
+    assert "小付的笔记" in detail
+    assert "京ICP备202605015号-1" in detail
+    assert "个人非经营性研究记录" in detail
 
 
 def test_build_site_lists_report_title_and_copies_detail_page(tmp_path):
