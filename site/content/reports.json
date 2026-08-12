@@ -1,5 +1,37 @@
 [
   {
+    "id": "920117-bj-qualitative-2026-08-12",
+    "company_name": "龙鑫智能",
+    "stock_code": "920117.BJ",
+    "report_type": "qualitative",
+    "report_type_label": "商业质量评估",
+    "title": "龙鑫智能（920117.BJ）商业质量评估报告",
+    "summary": "龙鑫是一家以研磨、干燥和物料自动化为核心的工艺型专用设备商；高毛利和高ROE验证细分工艺优势，但自动化线下滑、老龄应收和龙鑫干燥利润集中限制评级上限。",
+    "verdict": "B+ / 中等偏强 · 观察",
+    "industry": "专用机械",
+    "exchange": "BSE",
+    "analysis_date": "2026-08-12",
+    "published_at": "2026-08-12",
+    "public_path": "reports/920117-bj/qualitative/2026-08-12/index.html",
+    "content_path": "reports/920117-bj/qualitative/2026-08-12/index.html"
+  },
+  {
+    "id": "688205-sh-qualitative-2026-08-12",
+    "company_name": "德科立",
+    "stock_code": "688205.SH",
+    "report_type": "qualitative",
+    "report_type_label": "商业质量评估",
+    "title": "德科立（688205.SH）商业质量评估报告",
+    "summary": "德科立正从电信传输向高速数通换挡，跨层技术与客户认证已带来800G和DCI交付；但新业务尚未改善毛利、扣非ROE与自由现金流，净现金只提供转型时间，规模回报和客户复购决定B-评级能否上调。",
+    "verdict": "B- / 中等偏弱 · 观察",
+    "industry": "通信设备",
+    "exchange": "SSE",
+    "analysis_date": "2026-08-12",
+    "published_at": "2026-08-12",
+    "public_path": "reports/688205-sh/qualitative/2026-08-12/index.html",
+    "content_path": "reports/688205-sh/qualitative/2026-08-12/index.html"
+  },
+  {
     "id": "600887-sh-qualitative-2026-08-11",
     "company_name": "伊利股份",
     "stock_code": "600887.SH",
@@ -238,21 +270,5 @@
     "published_at": "2026-08-03",
     "public_path": "reports/000538-sz/qualitative/2026-04-10/index.html",
     "content_path": "reports/000538-sz/qualitative/2026-04-10/index.html"
-  },
-  {
-    "id": "920117-bj-qualitative-2026-08-12",
-    "company_name": "龙鑫智能",
-    "stock_code": "920117.BJ",
-    "report_type": "qualitative",
-    "report_type_label": "商业质量评估",
-    "title": "龙鑫智能（920117.BJ）商业质量评估报告",
-    "summary": "龙鑫是一家以研磨、干燥和物料自动化为核心的工艺型专用设备商；高毛利和高ROE验证细分工艺优势，但自动化线下滑、老龄应收和龙鑫干燥利润集中限制评级上限。",
-    "verdict": "B+ / 中等偏强 · 观察",
-    "industry": "专用机械",
-    "exchange": "BSE",
-    "analysis_date": "2026-08-12",
-    "published_at": "2026-08-12",
-    "public_path": "reports/920117-bj/qualitative/2026-08-12/index.html",
-    "content_path": "reports/920117-bj/qualitative/2026-08-12/index.html"
   }
 ]
