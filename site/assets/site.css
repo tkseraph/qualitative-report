@@ -536,12 +536,31 @@ input {
   text-align: right;
 }
 
-.footer-legal a,
-.footer-legal span {
+.footer-legal > a,
+.footer-legal > span {
   display: inline-block;
   margin: 9px 0 0 12px;
   color: rgba(251, 250, 246, 0.72);
   font-size: 11px;
+}
+
+.footer-legal .public-security-record {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.footer-legal .public-security-record img {
+  width: 18px;
+  height: 20px;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+
+.footer-legal .public-security-record span {
+  margin: 0;
+  color: inherit;
+  font-size: inherit;
 }
 
 [hidden] {
@@ -674,8 +693,8 @@ input {
     text-align: left;
   }
 
-  .footer-legal a,
-  .footer-legal span {
+  .footer-legal > a,
+  .footer-legal > span {
     margin-left: 0;
     margin-right: 12px;
   }

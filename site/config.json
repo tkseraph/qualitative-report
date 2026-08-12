@@ -6,7 +6,8 @@
   "base_url": "https://jiazhiyongxian.cn",
   "author": "独立研究者",
   "icp_number": "京ICP备202605015号-1",
-  "public_security_number": "",
-  "public_security_url": "",
+  "public_security_number": "京公网安备11010602203105号",
+  "public_security_url": "https://beian.mps.gov.cn/#/query/webSearch?code=11010602203105",
+  "public_security_icon": "/assets/beian.png",
   "social_image": "/assets/og.png"
 }

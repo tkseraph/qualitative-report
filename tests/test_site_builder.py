@@ -30,6 +30,11 @@ def test_build_site_writes_categorized_catalog_and_private_robots(tmp_path):
     assert "<title>小付的笔记 · 价值涌现 · 投研报告目录</title>" in html
     assert "备案网站名称：小付的笔记" in html
     assert "京ICP备202605015号-1" in html
+    assert "京公网安备11010602203105号" in html
+    assert "https://beian.mps.gov.cn/#/query/webSearch?code=11010602203105" in html
+    assert 'class="public-security-record"' in html
+    assert 'src="/assets/beian.png"' in html
+    assert (output / "assets" / "beian.png").is_file()
     assert "研究商业本质" in html
     assert "寻找长期价值" in html
     assert "让价值从证据中" not in html
@@ -83,6 +88,10 @@ def test_build_site_refreshes_public_report_identity_and_metadata(tmp_path):
     assert 'href="https://jiazhiyongxian.cn/reports/688187-sh/qualitative/2026-06-18/"' in detail
     assert "小付的笔记" in detail
     assert "京ICP备202605015号-1" in detail
+    assert "京公网安备11010602203105号" in detail
+    assert "https://beian.mps.gov.cn/#/query/webSearch?code=11010602203105" in detail
+    assert 'class="public-security-record"' in detail
+    assert 'src="/assets/beian.png"' in detail
     assert "个人非经营性研究记录" in detail
 
 

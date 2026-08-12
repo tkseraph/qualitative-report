@@ -126,7 +126,7 @@ def _public_url(public_path: str) -> str:
     return path
 
 
-PUBLIC_COMPLIANCE_CSS = """.publication-shell-brand>span{display:flex;flex-direction:column;gap:1px}.publication-shell-brand small{color:rgba(244,241,233,.56);font-size:9px;font-weight:400;letter-spacing:.04em}.publication-compliance{padding:28px 24px;text-align:center;background:#171916;color:#f4f1e9;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif}.publication-compliance strong,.publication-compliance span{display:block}.publication-compliance strong{font-family:'Songti SC','STSong',serif;font-size:16px}.publication-compliance span,.publication-compliance p,.publication-compliance a{margin:6px 0 0;color:rgba(244,241,233,.64);font-size:11px;line-height:1.7}.publication-compliance a{display:inline-block}.publication-compliance+.publication-return{border-top:0}"""
+PUBLIC_COMPLIANCE_CSS = """.publication-shell-brand>span{display:flex;flex-direction:column;gap:1px}.publication-shell-brand small{color:rgba(244,241,233,.56);font-size:9px;font-weight:400;letter-spacing:.04em}.publication-compliance{padding:28px 24px;text-align:center;background:#171916;color:#f4f1e9;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif}.publication-compliance strong,.publication-compliance>span{display:block}.publication-compliance strong{font-family:'Songti SC','STSong',serif;font-size:16px}.publication-compliance>span,.publication-compliance p,.publication-compliance a{margin:6px 0 0;color:rgba(244,241,233,.64);font-size:11px;line-height:1.7}.publication-compliance a{display:inline-block}.publication-compliance .public-security-record{display:inline-flex;align-items:center;gap:6px}.publication-compliance .public-security-record img{width:18px;height:20px;object-fit:contain;flex:0 0 auto}.publication-compliance+.publication-return{border-top:0}"""
 
 
 def _report_absolute_url(config: dict[str, str], public_path: str) -> str:
@@ -213,10 +213,16 @@ def _prepare_public_report(
     if config.get("public_security_number"):
         number = html_lib.escape(config["public_security_number"])
         public_security_url = config.get("public_security_url", "")
+        public_security_icon = config.get("public_security_icon", "")
+        icon = (
+            f'<img src="{html_lib.escape(public_security_icon, quote=True)}" alt="" width="18" height="20">'
+            if public_security_icon
+            else ""
+        )
         if public_security_url:
             legal_links += (
-                f'<a href="{html_lib.escape(public_security_url, quote=True)}" target="_blank" '
-                f'rel="noopener noreferrer">{number}</a>'
+                f'<a class="public-security-record" href="{html_lib.escape(public_security_url, quote=True)}" '
+                f'target="_blank" rel="noopener noreferrer">{icon}{number}</a>'
             )
         else:
             legal_links += f"<span>{number}</span>"

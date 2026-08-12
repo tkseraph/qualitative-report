@@ -75,7 +75,10 @@
 ```json
 {
   "base_url": "https://你的域名",
-  "icp_number": "你的ICP备案号"
+  "icp_number": "你的ICP备案号",
+  "public_security_number": "你的公安联网备案号",
+  "public_security_url": "公安备案查询链接",
+  "public_security_icon": "/assets/beian.png"
 }
 ```
 
