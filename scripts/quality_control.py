@@ -32,7 +32,9 @@ else:
 
 HEADER_WARNING = (
     "> ⚠️ 以下数值由 Python 确定性计算。内部证据账本应直接引用 CM 定位，"
-    "公开报告不得保留 `[src: ...]`；不要重复心算。百万元→亿元 = 原值 ÷ 100。\n"
+    "公开报告不得保留 `[src: ...]`；不要重复心算。百万元→亿元 = 原值 ÷ 100。"
+    "计算结果继承 data_pack_market.md 的合并口径；若与年报原表冲突，必须回到同一张合并报表复核，"
+    "不得把母公司与合并报表科目混接。\n"
 )
 
 
@@ -235,18 +237,23 @@ def selected_working_capital_bridge(
     balance: dict[str, dict[str, Optional[float]]],
     years: list[str],
 ) -> list[dict[str, Optional[float] | str]]:
-    """Build a cash-effect proxy from the four project working-capital anchors.
+    """Build a cash-effect proxy from symmetric trade-working-capital anchors.
 
     Positive asset growth consumes cash. Positive operating-liability growth
-    provides financing. The proxy deliberately excludes all other working-
-    capital accounts and therefore must not be presented as an OCF identity.
+    provides financing. Notes receivable/payable are optional, but when the
+    source table contains them they are included on both sides rather than
+    selectively adding only supplier notes. The proxy deliberately excludes
+    all other working-capital accounts and is not an OCF identity.
     """
     keys = {
         "receivables": find_item(balance, "应收账款"),
+        "notes_receivable": find_item(balance, "应收票据"),
         "inventory": find_item(balance, "存货"),
         "payables": find_item(balance, "应付账款"),
+        "notes_payable": find_item(balance, "应付票据"),
         "contract_liabilities": find_item(balance, "合同负债", "预收款项"),
     }
+    required = {"receivables", "inventory", "payables", "contract_liabilities"}
     rows: list[dict[str, Optional[float] | str]] = []
     for index in range(len(years) - 1):
         current_year = years[index]
@@ -255,15 +262,18 @@ def selected_working_capital_bridge(
             name: _yearly_change(balance, key, current_year, previous_year)
             for name, key in keys.items()
         }
-        available = [value for value in changes.values() if value is not None]
         proxy = None
-        if len(available) == len(changes):
+        if all(changes[name] is not None for name in required):
             proxy = (
                 -float(changes["receivables"])
                 - float(changes["inventory"])
                 + float(changes["payables"])
                 + float(changes["contract_liabilities"])
             )
+            if changes["notes_receivable"] is not None:
+                proxy -= float(changes["notes_receivable"])
+            if changes["notes_payable"] is not None:
+                proxy += float(changes["notes_payable"])
         rows.append({
             "period": f"{current_year} vs {previous_year}",
             **changes,
@@ -443,8 +453,10 @@ def build_report(
             [
                 str(row["period"]),
                 format_number(to_yi(row["receivables"]), divider=1),
+                format_number(to_yi(row["notes_receivable"]), divider=1),
                 format_number(to_yi(row["inventory"]), divider=1),
                 format_number(to_yi(row["payables"]), divider=1),
+                format_number(to_yi(row["notes_payable"]), divider=1),
                 format_number(to_yi(row["contract_liabilities"]), divider=1),
                 format_number(to_yi(row["cash_effect_proxy"]), divider=1),
             ]
@@ -454,19 +466,22 @@ def build_report(
             format_table(
                 [
                     "期间",
-                    "应收增加",
+                    "应收账款增加",
+                    "应收票据增加",
                     "存货增加",
-                    "应付增加",
+                    "应付账款增加",
+                    "应付票据增加",
                     "合同负债增加",
                     "精选科目现金影响",
                 ],
                 rows,
-                ["l", "r", "r", "r", "r", "r"],
+                ["l", "r", "r", "r", "r", "r", "r", "r"],
             ),
             "",
-            "> 精选科目现金影响 = -应收增加 - 存货增加 + 应付增加 + 合同负债增加。"
+            "> 精选科目现金影响 = -应收账款增加 - 应收票据增加 - 存货增加 "
+            "+ 应付账款增加 + 应付票据增加 + 合同负债增加。"
             "合同负债代表客户预收融资，不能与应收、存货一起相加为“资本占用”；"
-            "该桥不含票据、税费及其他经营科目，不能替代现金流量表或管理层现金流解释。\n",
+            "该桥不含应收款项融资、税费及其他经营科目，不能替代现金流量表或管理层现金流解释。\n",
         ])
 
     parts.append(

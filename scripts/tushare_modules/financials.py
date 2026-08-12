@@ -806,6 +806,8 @@ class FinancialsMixin:
                              fields="ts_code,ann_date,f_ann_date,end_date,report_type,update_flag,"
                                     "n_cashflow_act,n_cashflow_inv_act,"
                                     "n_cash_flows_fnc_act,c_pay_acq_const_fiolta,"
+                                    "c_fr_sale_sg,c_paid_goods_s,oth_cash_pay_oper_act,"
+                                    "st_cash_in_act,st_cash_out_act,"
                                     "depr_fa_coga_dpba,amort_intang_assets,"
                                     "lt_amort_deferred_exp,"
                                     "c_pay_dist_dpcp_int_exp,"
@@ -833,6 +835,11 @@ class FinancialsMixin:
 
         simple_fields = [
             ("经营活动现金流 (OCF)", "n_cashflow_act"),
+            ("销售商品、提供劳务收到的现金", "c_fr_sale_sg"),
+            ("购买商品、接受劳务支付的现金", "c_paid_goods_s"),
+            ("支付其他与经营活动有关的现金", "oth_cash_pay_oper_act"),
+            ("经营活动现金流入小计", "st_cash_in_act"),
+            ("经营活动现金流出小计", "st_cash_out_act"),
             ("投资活动现金流", "n_cashflow_inv_act"),
             ("筹资活动现金流", "n_cash_flows_fnc_act"),
             ("资本支出(购建固定资产等)", "c_pay_acq_const_fiolta"),

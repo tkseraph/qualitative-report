@@ -209,13 +209,16 @@ This is not a keyword checklist. Reject the draft if any of these is true:
 - D2's six-step interrogation or falsification table lacks a synthesis that weighs competing hypotheses;
 - support is listed without explaining why it does not justify a higher rating;
 - contract liabilities are added to receivables or inventory and mislabeled as capital occupied;
-- OCF improvement is asserted without a working-capital bridge or without distinguishing customer/supplier financing from collections;
+- a working-capital bridge mixes parent-company and consolidated figures, mixes periods, or includes trade notes on only one side when both sides are material;
+- OCF improvement or deterioration is asserted from selected balance-sheet movements alone, without distinguishing customer/supplier financing from collections and checking direct-method cash receipts and payments when disclosed;
 - D2 does not compare at least two competing moat hypotheses or ignores a peer counterexample;
 - an order-cycle company lacks the demand/capex → order → delivery → acceptance → revenue → cash transmission and a stated current stage;
 - a non-full SOTP mode lacks a concrete decision reason, best feasible analysis, double-counting check or upgrade trigger;
 - SOTP depth is decided only by data availability without testing economic separability;
 - fewer than five annual ROE observations are described as a five-year average;
 - prose reads like a generated template, repeats headings mechanically, or hides the investment conclusion behind caveats.
+
+Before passing, perform a table-to-prose delta check for D1-D6: in every dimension, identify at least one prose conclusion that adds a causal mechanism, competing explanation, rating effect or concrete decision beyond merely restating the nearest table. If any dimension only paraphrases its tables, record a major finding. Award `prose_naturalness=5` only when transitions and conclusions are company-specific and varied rather than repeated formula prefixes.
 
 Score each dimension 1-5. `pass` requires every score >=4 and no blocking/major finding.
 If revision is needed, list only the section headings that may be changed in allowed_revision_sections.

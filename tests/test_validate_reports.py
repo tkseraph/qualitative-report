@@ -553,6 +553,16 @@ def test_current_qualitative_contract_passes_enhanced_reasoning_checks():
     assert result.ok, result.messages
 
 
+def test_current_contract_accepts_two_moat_hypotheses_in_one_natural_sentence():
+    text = _current_contract_qualitative().replace(
+        "第一种网络效率假说认为稀缺区位和集疏运网络形成可持续成本优势；第二种周期景气假说认为回报主要来自外贸景气。",
+        "第一种网络效率假说认为稀缺区位和集疏运网络形成可持续成本优势，第二种周期景气假说认为回报主要来自外贸景气。",
+        1,
+    )
+    result = validate_markdown(text, "qualitative", quality_contract="current")
+    assert result.ok, result.messages
+
+
 def test_current_contract_rejects_misclassified_working_capital_and_roe_history():
     text = _current_contract_qualitative().replace(
         "经营现金流现金桥显示，应收与存货增加属于经营资产占用，应付与合同负债增加属于客户或供应商提供的经营融资；四项变化共同解释了经营现金流，合同负债不能与资产相加称为资本占用。",

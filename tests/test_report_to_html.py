@@ -1,4 +1,7 @@
+import json
 from pathlib import Path
+
+from bs4 import BeautifulSoup
 
 from report_to_html import build_verdict, extract_kpi_cards, parse_report, render_report_html
 
@@ -1800,6 +1803,40 @@ chart_ready: true; chart_type: line; x_axis: 年份; bar_series: ; line_series: 
     assert "data-chart-visual=\"line\"" in html
     assert "&quot;label&quot;: &quot;分红率&quot;" in html
     assert "&quot;role&quot;: &quot;line&quot;" in html
+
+
+def test_render_report_html_honors_explicit_units_and_series_roles(tmp_path):
+    md_text = SAMPLE_LEVEL_RESEARCH_MD + """
+## 维度一：商业模式与资本特征
+
+### 图表三：资本开支与现金占用需要放在一起观察
+
+chart_ready: true; chart_id: explicit-units; chart_target: dimension_1; chart_type: mixed; x_axis: 年份; bar_series: Capex,D&A,应收账款; line_series: Capex/D&A; unit_map: Capex=亿元, D&A=亿元, 应收账款=亿元, Capex/D&A=倍
+
+读图结论：金额列使用亿元，资本消耗比率使用倍数。
+
+| 年份 | Capex | D&A | 应收账款 | Capex/D&A |
+|---|---:|---:|---:|---:|
+| 2024 | 1.52 | 0.33 | 2.22 | 4.63 |
+| 2025 | 1.97 | 0.42 | 2.47 | 4.73 |
+"""
+    report_path = tmp_path / "688205_SH_qualitative_report.md"
+    output_path = tmp_path / "688205_SH_qualitative_report.html"
+    report_path.write_text(md_text, encoding="utf-8")
+
+    render_report_html(report_path, output_path, standalone=True)
+
+    soup = BeautifulSoup(output_path.read_text(encoding="utf-8"), "html.parser")
+    node = soup.select_one('[data-chart-id="explicit-units"]')
+    assert node is not None
+    payload = json.loads(node["data-chart-series"])
+    datasets = {item["label"]: item for item in payload["datasets"]}
+    assert datasets["D&A"]["unit"] == "亿元"
+    assert datasets["应收账款"]["unit"] == "亿元"
+    assert datasets["D&A"]["role"] == "bar"
+    assert datasets["Capex/D&A"]["unit"] == "倍"
+    assert datasets["Capex/D&A"]["role"] == "line"
+    assert "sample.unit === '倍'" in output_path.read_text(encoding="utf-8")
 
 
 def test_render_report_html_promotes_readout_tables_with_conclusion_titles(tmp_path):

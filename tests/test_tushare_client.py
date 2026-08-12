@@ -1051,6 +1051,8 @@ class TestCashflowExpanded:
             result = client.get_cashflow("600887.SH")
 
         new_labels = [
+            "销售商品、提供劳务收到的现金", "购买商品、接受劳务支付的现金",
+            "支付其他与经营活动有关的现金", "经营活动现金流入小计", "经营活动现金流出小计",
             "支付给职工现金", "支付的各项税费",
             "处置固定资产收回现金", "收到税费返还",
             "取得投资收益收到现金", "分配股利偿付利息",
@@ -1071,6 +1073,9 @@ class TestCashflowExpanded:
         assert "8,520.00" in result
         # c_pay_dist_dpcp_int_exp 2024: 5800000000 -> 5,800.00
         assert "5,800.00" in result
+        # Direct-method cash-flow anchors make OCF changes auditable.
+        assert "120,000.00" in result
+        assert "82,000.00" in result
 
 
 # --- Feature #83: Financial indicators expanded ---

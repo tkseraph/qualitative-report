@@ -613,8 +613,8 @@ def _series_unit(header: str, sample_values: list[str]) -> str:
 def _series_role(header: str, chart_type: str, unit: str) -> str:
     if chart_type in {"bar-line-table", "bar-line-trend", "bar-table"}:
         if chart_type == "bar-table":
-            return "bar" if unit not in {"%", "x"} else "line"
-        if unit in {"%", "x"} or header.endswith("_pct") or any(token in header for token in ("率", "占比", "同比")):
+            return "bar" if unit not in {"%", "x", "倍"} else "line"
+        if unit in {"%", "x", "倍"} or _is_ratio_header(header) or header.endswith("_pct") or any(token in header for token in ("率", "占比", "同比")):
             return "line"
         return "bar"
     return "line"
@@ -655,7 +655,27 @@ def _windowed_labels_and_rows(headers: list[str], rows: list[list[str]], chart_t
     return headers, rows, "all"
 
 
-def _chart_series_payload(table_text: str, chart_type: str = "multi-series-trend") -> dict:
+def _explicit_series_role(
+    label: str,
+    chart_type: str,
+    unit: str,
+    bar_series: set[str] | None,
+    line_series: set[str] | None,
+) -> str:
+    if bar_series and label in bar_series:
+        return "bar"
+    if line_series and label in line_series:
+        return "line"
+    return _series_role(label, chart_type, unit)
+
+
+def _chart_series_payload(
+    table_text: str,
+    chart_type: str = "multi-series-trend",
+    unit_map: dict[str, str] | None = None,
+    bar_series: set[str] | None = None,
+    line_series: set[str] | None = None,
+) -> dict:
     headers, rows = _parse_markdown_table(table_text)
     if len(headers) < 2 or not rows:
         return {"labels": [], "datasets": [], "window": "all"}
@@ -672,12 +692,12 @@ def _chart_series_payload(table_text: str, chart_type: str = "multi-series-trend
             raw_values = row[1:][-5:]
             values = [_numeric_value(raw) for raw in raw_values]
             if any(value is not None for value in values):
-                unit = _series_unit(label, raw_values)
+                unit = (unit_map or {}).get(label) or _series_unit(label, raw_values)
                 datasets.append({
                     "label": label,
                     "values": values,
                     "unit": unit,
-                    "role": _series_role(label, chart_type, unit),
+                    "role": _explicit_series_role(label, chart_type, unit, bar_series, line_series),
                 })
         return {"labels": labels, "datasets": datasets, "window": window}
 
@@ -694,12 +714,12 @@ def _chart_series_payload(table_text: str, chart_type: str = "multi-series-trend
             raw_values.append(raw)
             values.append(_numeric_value(raw))
         if any(value is not None for value in values):
-            unit = _series_unit(header, raw_values)
+            unit = (unit_map or {}).get(header) or _series_unit(header, raw_values)
             datasets.append({
                 "label": header,
                 "values": values,
                 "unit": unit,
-                "role": _series_role(header, chart_type, unit),
+                "role": _explicit_series_role(header, chart_type, unit, bar_series, line_series),
             })
     return {"labels": labels, "datasets": datasets, "window": window}
 
@@ -719,10 +739,13 @@ def _chart_canvas_html(
     table_text: str,
     chart_type: str = "multi-series-trend",
     chart_id: str = "",
+    unit_map: dict[str, str] | None = None,
+    bar_series: set[str] | None = None,
+    line_series: set[str] | None = None,
 ) -> str:
     display_title = _reader_chart_title(title)
     caption = f"{display_title} — {readout}" if readout else display_title
-    payload = _chart_series_payload(table_text, chart_type)
+    payload = _chart_series_payload(table_text, chart_type, unit_map, bar_series, line_series)
     return (
         f'<div class="chart-container" data-chart-id="{html.escape(chart_id, quote=True)}" data-chart-type="{chart_type}" data-chart-kind="{_chart_kind(chart_type)}" data-chart-visual="{_chart_visual_grammar(chart_type)}" data-chart-window="{payload.get("window", "all")}" data-chart-title="{html.escape(display_title, quote=True)}" '
         f'data-chart-series="{html.escape(json.dumps(payload, ensure_ascii=False), quote=True)}">'
@@ -856,6 +879,29 @@ def _chart_metadata_value(body: str, field: str) -> str:
     return field_match.group(1).strip() if field_match else ""
 
 
+def _chart_metadata_series(body: str, field: str) -> set[str]:
+    raw = _chart_metadata_value(body, field)
+    return {
+        item.strip()
+        for item in re.split(r"[,，]", raw)
+        if item.strip()
+    }
+
+
+def _chart_metadata_unit_map(body: str) -> dict[str, str]:
+    raw = _chart_metadata_value(body, "unit_map")
+    units: dict[str, str] = {}
+    for item in re.split(r"[,，]", raw):
+        if "=" not in item:
+            continue
+        label, unit = item.split("=", 1)
+        label = label.strip()
+        unit = unit.strip()
+        if label and unit:
+            units[label] = unit
+    return units
+
+
 def _chart_type_for_title(title: str, default: str = "multi-series-trend") -> str:
     if any(keyword in title for keyword in ("资本配置", "配置流向", "流向")):
         return "bar-table"
@@ -921,7 +967,10 @@ def _chart_card(title: str, body: str, chart_type: str = "multi-series-trend", t
     chart_type = _chart_type_from_metadata(body) or _chart_type_for_title(title, chart_type)
     if not _is_chartable_table(table_text, title, chart_type):
         return None
-    payload = _chart_series_payload(table_text, chart_type)
+    unit_map = _chart_metadata_unit_map(body)
+    bar_series = _chart_metadata_series(body, "bar_series")
+    line_series = _chart_metadata_series(body, "line_series")
+    payload = _chart_series_payload(table_text, chart_type, unit_map, bar_series, line_series)
     datasets = payload.get("datasets", [])
     if not datasets:
         return None
@@ -940,7 +989,16 @@ def _chart_card(title: str, body: str, chart_type: str = "multi-series-trend", t
         "target": explicit_target or target_override or _core_chart_target(title),
         "chart_id": chart_id,
         "title_class": _semantic_chart_title_class(title),
-        "chart_html": _chart_canvas_html(title, readout, table_text, chart_type, chart_id),
+        "chart_html": _chart_canvas_html(
+            title,
+            readout,
+            table_text,
+            chart_type,
+            chart_id,
+            unit_map,
+            bar_series,
+            line_series,
+        ),
         "table_html": md_to_html(table_text),
     }
 

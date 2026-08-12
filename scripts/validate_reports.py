@@ -452,10 +452,14 @@ def _has_d2_moat_falsification(section_text: str) -> bool:
 def _has_d2_competing_hypothesis_synthesis(section_text: str) -> bool:
     if not section_text:
         return False
-    hypothesis_markers = re.findall(
-        r"(?:第一种|第二种|假说一|假说二|假设一|假设二|解释一|解释二)[^\n。；;]{0,100}(?:假说|假设|解释)?",
+    # Count the ordinal markers themselves.  The previous expression consumed
+    # an entire clause, so natural prose such as “第一种……，第二种……” was
+    # greedily captured as one match and forced writers to add artificial line
+    # breaks or semicolons merely to satisfy the validator.
+    hypothesis_markers = set(re.findall(
+        r"第一种|第二种|假说一|假说二|假设一|假设二|解释一|解释二",
         section_text,
-    )
+    ))
     if len(hypothesis_markers) < 2:
         return False
     has_evidence_verdict = _contains_any(

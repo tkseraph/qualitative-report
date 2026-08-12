@@ -94,6 +94,22 @@ def test_working_capital_bridge_treats_contract_liability_as_financing():
     assert bridge[0]["cash_effect_proxy"] == -3_000
 
 
+def test_working_capital_bridge_includes_trade_notes_symmetrically():
+    pack = SAMPLE_PACK.replace(
+        "| 应收账款 | 20,000 | 18,000 |",
+        "| 应收票据 | 9,000 | 10,000 |\n| 应收账款 | 20,000 | 18,000 |",
+    ).replace(
+        "| 应付账款 | 15,000 | 13,000 |",
+        "| 应付票据 | 7,000 | 6,000 |\n| 应付账款 | 15,000 | 13,000 |",
+    )
+    sections = parse_sections(pack)
+    years, balance = parse_matrix(sections["4"])
+    bridge = selected_working_capital_bridge(balance, years)
+    assert bridge[0]["notes_receivable"] == -1_000
+    assert bridge[0]["notes_payable"] == 1_000
+    assert bridge[0]["cash_effect_proxy"] == -1_000
+
+
 def test_report_ignores_quarter_and_aggregates_same_year_dividends():
     sections = parse_sections(SAMPLE_PACK)
     periods, income = parse_matrix(sections["3"])
@@ -107,7 +123,7 @@ def test_report_ignores_quarter_and_aggregates_same_year_dividends():
     assert "2025Q1 百万元" not in report
     assert "roe_history_years = 2" in report
     assert "roe_5y_avg = null" in report
-    assert "| 2024 vs 2023 | 20.00 | 50.00 | 20.00 | 20.00 | -30.00 |" in report
+    assert "| 2024 vs 2023 | 20.00 | — | 50.00 | 20.00 | — | 20.00 | -30.00 |" in report
     assert "合同负债代表客户预收融资" in report
 
 

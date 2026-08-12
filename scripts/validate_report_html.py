@@ -95,6 +95,71 @@ def validate_html(html_text: str, markdown_text: str) -> tuple[list[str], dict]:
     if nonempty_ids and len(nonempty_ids) != len(set(nonempty_ids)):
         errors.append("chart_id values must be unique")
 
+    chart_metadata_match = True
+    metadata_lines = re.findall(
+        r"^chart_ready:\s*true\s*;(?P<meta>.*)$",
+        markdown_text,
+        flags=re.MULTILINE | re.IGNORECASE,
+    )
+    for index, meta in enumerate(metadata_lines):
+        def metadata_value(field: str) -> str:
+            match = re.search(rf"(?:^|;)\s*{re.escape(field)}:\s*([^;]+)", meta)
+            return match.group(1).strip() if match else ""
+
+        chart_id = metadata_value("chart_id")
+        node = soup.select_one(f'[data-chart-id="{chart_id}"]') if chart_id else (
+            chart_nodes[index] if index < len(chart_nodes) else None
+        )
+        if node is None:
+            continue
+        try:
+            payload = json.loads(node.get("data-chart-series", "{}"))
+        except json.JSONDecodeError:
+            chart_metadata_match = False
+            errors.append(f"chart {chart_id or index + 1} has invalid data-chart-series JSON")
+            continue
+        datasets = {
+            str(item.get("label", "")): item
+            for item in payload.get("datasets", [])
+            if isinstance(item, dict)
+        }
+        expected_units: dict[str, str] = {}
+        for item in re.split(r"[,，]", metadata_value("unit_map")):
+            if "=" in item:
+                label, unit = item.split("=", 1)
+                if label.strip() and unit.strip():
+                    expected_units[label.strip()] = unit.strip()
+        expected_roles = {
+            label.strip(): "bar"
+            for label in re.split(r"[,，]", metadata_value("bar_series"))
+            if label.strip()
+        }
+        expected_roles.update({
+            label.strip(): "line"
+            for label in re.split(r"[,，]", metadata_value("line_series"))
+            if label.strip()
+        })
+        for label, unit in expected_units.items():
+            if label not in datasets:
+                chart_metadata_match = False
+                errors.append(f"chart {chart_id or index + 1} unit_map series missing from rendered data: {label}")
+            elif datasets[label].get("unit") != unit:
+                chart_metadata_match = False
+                errors.append(
+                    f"chart {chart_id or index + 1} unit_map mismatch for {label}: "
+                    f"expected {unit}, got {datasets[label].get('unit', '')}"
+                )
+        for label, role in expected_roles.items():
+            if label not in datasets:
+                chart_metadata_match = False
+                errors.append(f"chart {chart_id or index + 1} declared series missing from rendered data: {label}")
+            elif datasets[label].get("role") != role:
+                chart_metadata_match = False
+                errors.append(
+                    f"chart {chart_id or index + 1} series role mismatch for {label}: "
+                    f"expected {role}, got {datasets[label].get('role', '')}"
+                )
+
     duplicate_ids = [
         value for value in {node.get("id") for node in soup.select("[id]")}
         if value and len(soup.select(f'[id="{value}"]')) > 1
@@ -116,6 +181,7 @@ def validate_html(html_text: str, markdown_text: str) -> tuple[list[str], dict]:
             "dimension_count": len(dimensions),
             "dimension_headings_match": dimension_headings_match,
             "golden_chart_count": golden_chart_count_ok,
+            "chart_metadata_match": chart_metadata_match,
             "raw_markdown_absent": raw_markdown_absent,
             "default_open_roles": open_roles,
         },

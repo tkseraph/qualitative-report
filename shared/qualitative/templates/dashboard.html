@@ -380,7 +380,7 @@
     if (!sample || !sample.unit) return '';
     if (sample.unit === '亿元') return '金额 · 亿元';
     if (sample.unit === '%' || sample.unit === 'pct') return '比例 · %';
-    if (sample.unit === 'x' || sample.unit === 'X') return '比率 · 倍';
+    if (sample.unit === 'x' || sample.unit === 'X' || sample.unit === '倍') return '比率 · 倍';
     return '单位 · ' + sample.unit;
   }
 
