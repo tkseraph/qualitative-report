@@ -238,5 +238,21 @@
     "published_at": "2026-08-03",
     "public_path": "reports/000538-sz/qualitative/2026-04-10/index.html",
     "content_path": "reports/000538-sz/qualitative/2026-04-10/index.html"
+  },
+  {
+    "id": "920117-bj-qualitative-2026-08-12",
+    "company_name": "龙鑫智能",
+    "stock_code": "920117.BJ",
+    "report_type": "qualitative",
+    "report_type_label": "商业质量评估",
+    "title": "龙鑫智能（920117.BJ）商业质量评估报告",
+    "summary": "龙鑫是一家以研磨、干燥和物料自动化为核心的工艺型专用设备商；高毛利和高ROE验证细分工艺优势，但自动化线下滑、老龄应收和龙鑫干燥利润集中限制评级上限。",
+    "verdict": "B+ / 中等偏强 · 观察",
+    "industry": "专用机械",
+    "exchange": "BSE",
+    "analysis_date": "2026-08-12",
+    "published_at": "2026-08-12",
+    "public_path": "reports/920117-bj/qualitative/2026-08-12/index.html",
+    "content_path": "reports/920117-bj/qualitative/2026-08-12/index.html"
   }
 ]
