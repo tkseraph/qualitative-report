@@ -117,6 +117,8 @@ SECTION_KEYWORDS: Dict[str, List[str]] = {
         "经营情况讨论与分析",
         "经营情况的讨论与分析",
         "管理层分析与讨论",
+        "会计数据、经营情况和管理层分析",
+        "商业模式与经营计划实现情况",
         "董事会报告",
         # Traditional Chinese
         "管理層討論與分析",
@@ -163,12 +165,13 @@ ZONE_MARKERS: List[Tuple[str, str]] = [
     (r"第[一二三四五六七八九十百]+节\s*公司简介", "INTRO_ZONE"),
     (r"第[一二三四五六七八九十百]+节\s*管理层讨论与分析", "MDA_ZONE"),
     (r"第[一二三四五六七八九十百]+节\s*经营情况讨论与分析", "MDA_ZONE"),
+    (r"(?:^|\n)\s*第[一二三四五六七八九十百]+节\s*会计数据[、，,]经营情况和管理层分析", "MDA_ZONE"),
     (r"第[一二三四五六七八九十百]+节\s*公司治理", "GOVERNANCE_ZONE"),
     (r"第[一二三四五六七八九十百]+节\s*财务报告", "FIN_ZONE"),
     (r"第[一二三四五六七八九十百]+节\s*会计数据", "FIN_ZONE"),
     # Sub-zones within financial report
     (r"[四五六]\s*[、.．]\s*重要会计政策", "POLICY_ZONE"),
-    (r"七\s*[、.．]\s*合并财务报表项目注释", "NOTES_ZONE"),
+    (r"[四五六七八九十]+\s*[、.．]\s*合并财务报表项目注释", "NOTES_ZONE"),
     (r"[一二三四五六七八九十]+[、.．]\s*补充资料", "SUPPLEMENT_ZONE"),
 ]
 
@@ -419,6 +422,12 @@ def _score_match(
     # Penalize TOC pages
     if "目录" in text or "目 录" in text:
         score -= 0.5
+
+    if section_id == "MDA":
+        if "重要提示" in text:
+            score -= 2.0
+        if "商业模式与经营计划实现情况" in text or "业务概要" in text:
+            score += 2.0
 
     # Penalize cross-references ("详见注释七'31、所有权或使用权受限资产'")
     kw_pos = text.find(keyword)

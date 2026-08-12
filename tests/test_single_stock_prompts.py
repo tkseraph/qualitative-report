@@ -12,6 +12,7 @@ from continue_single_stock import (
     build_step5_prompt,
     build_step7_prompt,
     build_step8_prompt,
+    detect_code_prefix,
     main,
 )
 
@@ -23,6 +24,13 @@ TURTLE = OUTPUT_DIR / "600018_SH_turtle_report.md"
 VALUATION = OUTPUT_DIR / "600018_SH_valuation_report.md"
 
 
+def test_detect_code_prefix_accepts_beijing_exchange(tmp_path):
+    (tmp_path / "data_pack_market.md").write_text(
+        "| 股票代码 | 920117.BJ |\n", encoding="utf-8"
+    )
+    assert detect_code_prefix(tmp_path) == "920117_BJ"
+
+
 def test_step5_prompt_requires_qualitative_shell_and_validation():
     prompt = build_step5_prompt(PROJECT_ROOT, OUTPUT_DIR, QUALITATIVE)
 
@@ -30,7 +38,7 @@ def test_step5_prompt_requires_qualitative_shell_and_validation():
     assert "Business Quality Verdict / 商业质量总体评级" in prompt
     assert "Quality Snapshot / 质量快照" in prompt
     assert "数据来源与免责声明" in prompt
-    assert f"python {PROJECT_ROOT / 'scripts' / 'validate_reports.py'}" in prompt
+    assert f"{sys.executable} {PROJECT_ROOT / 'scripts' / 'validate_reports.py'}" in prompt
     assert "--type qualitative" in prompt
 
 
@@ -39,7 +47,7 @@ def test_step5_prompt_wires_budget_provenance_and_advisory_audit():
 
     for term in (
         str(OUTPUT_DIR / "computed_metrics.md"),
-        "CM§1-CM§5",
+        "CM§1-CM§6",
         "不得出现 `[src: ...]`",
         "qualitative_evidence.json",
         "lead-with-numbers",
@@ -93,6 +101,10 @@ def test_step5_prompt_requires_fixed_first_screen_card_schema_and_machine_fields
     assert "| 项目 | 结论 |" in prompt
     assert "不要使用“问题 / 回答”或“判断项 / 结论 / 核心依据”替代表头" in prompt
     for field in (
+        "analysis_contract_version",
+        "roe_history_years",
+        "roe_available_years_avg",
+        "sotp_economic_separability",
         "roe_5y_avg",
         "moat_rating",
         "moat_sustainability",
@@ -521,7 +533,7 @@ def test_step5_prompt_requires_websearch_peer_context_prefill_when_missing():
 def test_prompt_validation_commands_use_absolute_validate_script():
     prompt = build_step5_prompt(PROJECT_ROOT, OUTPUT_DIR, QUALITATIVE)
 
-    assert f"python {PROJECT_ROOT / 'scripts' / 'validate_reports.py'} {QUALITATIVE} --type qualitative" in prompt
+    assert f"{sys.executable} {PROJECT_ROOT / 'scripts' / 'validate_reports.py'} {QUALITATIVE} --type qualitative --quality-contract current" in prompt
     assert "python scripts/validate_reports.py" not in prompt
 
 
@@ -532,11 +544,13 @@ def test_validation_command_preserves_paths_with_spaces():
     argv = _validation_argv(project_root, report, "qualitative")
 
     assert argv == [
-        "python",
+        sys.executable,
         "/repo with spaces/scripts/validate_reports.py",
         "/output with spaces/qualitative report.md",
         "--type",
         "qualitative",
+        "--quality-contract",
+        "current",
     ]
     assert shlex.split(_validation_command(project_root, report, "qualitative")) == argv
 
@@ -572,7 +586,7 @@ def test_step7_prompt_generates_turtle_report_and_validation():
     assert "strategies/turtle/phase3_valuation.md" in prompt
     assert "Strategy Verdict" in prompt
     assert "Turtle Snapshot / 核心指标快照" in prompt
-    assert f"python {PROJECT_ROOT / 'scripts' / 'validate_reports.py'}" in prompt
+    assert f"{sys.executable} {PROJECT_ROOT / 'scripts' / 'validate_reports.py'}" in prompt
     assert "--type turtle" in prompt
 
 
@@ -585,7 +599,7 @@ def test_step8_prompt_generates_valuation_report_and_validation():
     assert "strategies/valuation/phase2_valuation.md" in prompt
     assert "Valuation Verdict / 估值总体判断" in prompt
     assert "Valuation Snapshot / 估值快照" in prompt
-    assert f"python {PROJECT_ROOT / 'scripts' / 'validate_reports.py'}" in prompt
+    assert f"{sys.executable} {PROJECT_ROOT / 'scripts' / 'validate_reports.py'}" in prompt
     assert "--type valuation" in prompt
 
 

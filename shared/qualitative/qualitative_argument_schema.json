@@ -62,6 +62,69 @@
         "upgrade_trigger": {"type": "string", "minLength": 8}
       },
       "additionalProperties": false
+    },
+    "quality_checks": {
+      "type": "object",
+      "required": ["working_capital_cash_bridge", "competing_moat_hypotheses", "cycle_transmission", "roe_history", "sotp_economic_separability"],
+      "properties": {
+        "working_capital_cash_bridge": {
+          "type": "object",
+          "required": ["status", "conclusion"],
+          "properties": {
+            "status": {"enum": ["pass", "not_applicable"]},
+            "conclusion": {"type": "string", "minLength": 8}
+          },
+          "additionalProperties": false
+        },
+        "competing_moat_hypotheses": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "required": ["name", "support", "counter_evidence", "verdict", "rating_impact"],
+            "properties": {
+              "name": {"type": "string", "minLength": 4},
+              "support": {"type": "string", "minLength": 8},
+              "counter_evidence": {"type": "string", "minLength": 8},
+              "verdict": {"type": "string", "minLength": 4},
+              "rating_impact": {"type": "string", "minLength": 4}
+            },
+            "additionalProperties": false
+          }
+        },
+        "cycle_transmission": {
+          "type": "object",
+          "required": ["classification", "current_stage", "transmission_chain", "evidence_ids"],
+          "properties": {
+            "classification": {"type": "string", "minLength": 2},
+            "current_stage": {"type": "string", "minLength": 4},
+            "transmission_chain": {"type": "array", "minItems": 3, "items": {"type": "string", "minLength": 2}},
+            "evidence_ids": {"$ref": "#/$defs/evidenceIds"}
+          },
+          "additionalProperties": false
+        },
+        "roe_history": {
+          "type": "object",
+          "required": ["years", "available_years_avg", "five_year_avg"],
+          "properties": {
+            "years": {"type": "integer", "minimum": 0, "maximum": 5},
+            "available_years_avg": {"type": ["number", "null"]},
+            "five_year_avg": {"type": ["number", "null"]}
+          },
+          "additionalProperties": false
+        },
+        "sotp_economic_separability": {
+          "type": "object",
+          "required": ["status", "tested_dimensions", "conclusion"],
+          "properties": {
+            "status": {"enum": ["not_applicable", "not_demonstrated", "partial", "demonstrated"]},
+            "tested_dimensions": {"type": "array", "minItems": 6, "items": {"type": "string", "minLength": 2}, "uniqueItems": true},
+            "conclusion": {"type": "string", "minLength": 8}
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
     }
   },
   "$defs": {

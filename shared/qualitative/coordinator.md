@@ -18,7 +18,7 @@
 **解析规则**：
 1. 从用户消息中提取股票代码/名称
 2. 若用户只给了公司名称没给代码，在数据采集阶段由脚本通过 Tushare `stock_basic` 确认代码
-3. 代码格式化：A股 → `XXXXXX.SH/SZ`；港股 → `XXXXX.HK`；美股 → `AAPL.US`
+3. 代码格式化：A股 → `XXXXXX.SH/SZ/BJ`；港股 → `XXXXX.HK`；美股 → `AAPL.US`
 
 **AskUserQuestion 触发**：
 - 多地上市 → "{公司}分析哪个市场？"

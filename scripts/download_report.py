@@ -106,7 +106,7 @@ def validate_url(url):
 def build_filename(stock_code, report_type, year):
     """Build output filename: {code}_{year}_{report_type}.pdf
 
-    Strips SH/SZ prefix from stock_code to match coordinator.md convention
+    Strips SH/SZ/BJ prefix from stock_code to match coordinator.md convention
     (e.g. 600887_2024_年报.pdf).
     """
     # Normalize report type
@@ -117,8 +117,9 @@ def build_filename(stock_code, report_type, year):
         "q3": "三季报",
     }
     normalized = type_map.get(report_type.lower(), report_type)
-    # Strip exchange prefix for filename
-    code = re.sub(r"^(SH|SZ)", "", stock_code, flags=re.IGNORECASE)
+    # Strip exchange prefix/suffix for filename
+    code = re.sub(r"^(SH|SZ|BJ)", "", stock_code, flags=re.IGNORECASE)
+    code = re.sub(r"\.(SH|SZ|BJ)$", "", code, flags=re.IGNORECASE)
     return f"{code}_{year}_{normalized}.pdf"
 
 

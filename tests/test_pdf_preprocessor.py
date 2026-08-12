@@ -570,6 +570,7 @@ class TestMDAExtraction:
         assert "MDA" in SECTION_KEYWORDS
         keywords = SECTION_KEYWORDS["MDA"]
         assert "管理层讨论与分析" in keywords
+        assert "会计数据、经营情况和管理层分析" in keywords
         assert "董事会报告" in keywords
 
     def test_mda_extract_config(self):
@@ -781,6 +782,24 @@ class TestZoneDetection:
         assert zones[3] == "MDA_ZONE"
         assert zones[4] == "MDA_ZONE"
 
+    def test_detect_zones_neeq_management_analysis_heading(self):
+        pages = [
+            (1, "封面"),
+            (2, "第二节 会计数据、经营情况和管理层分析"),
+            (3, "商业模式与经营计划实现情况"),
+        ]
+        zones = detect_zones(pages)
+        assert zones[2] == "MDA_ZONE"
+        assert zones[3] == "MDA_ZONE"
+
+    def test_neeq_mda_prefers_body_over_important_notice_reference(self):
+        pages = [
+            (2, "重要提示：本年度报告已在‘第二节会计数据、经营情况和管理层分析’披露风险"),
+            (6, "第二节 会计数据、经营情况和管理层分析\n业务概要\n商业模式与经营计划实现情况"),
+        ]
+        matches = find_section_pages(pages)
+        assert matches["MDA"][0] == 6
+
     def test_detect_zones_multiple_markers(self):
         """Multiple markers create zone transitions."""
         pages = [
@@ -820,6 +839,16 @@ class TestZoneDetection:
         assert zones[14] == "POLICY_ZONE"
         assert zones[15] == "NOTES_ZONE"
         assert zones[16] == "NOTES_ZONE"
+
+    def test_detect_zones_neeq_fifth_section_notes(self):
+        pages = [
+            (40, "第七节 财务会计报告"),
+            (80, "五、合并财务报表项目注释"),
+            (81, "应收账款及其他附注"),
+        ]
+        zones = detect_zones(pages)
+        assert zones[80] == "NOTES_ZONE"
+        assert zones[81] == "NOTES_ZONE"
 
     def test_detect_zones_supplement(self):
         """Supplement zone detected."""

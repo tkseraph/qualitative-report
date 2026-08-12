@@ -8,7 +8,16 @@ from pathlib import Path
 
 import pytest
 
-from quality_control import build_report, main, parse_matrix, parse_sections, payout_ratio, yoy_pct
+from quality_control import (
+    build_report,
+    main,
+    parse_matrix,
+    parse_sections,
+    payout_ratio,
+    roe_history_summary,
+    selected_working_capital_bridge,
+    yoy_pct,
+)
 
 
 SAMPLE_PACK = """# 数据包
@@ -34,6 +43,10 @@ SAMPLE_PACK = """# 数据包
 | --- | ---: | ---: |
 | 总资产 | 100,000 | 90,000 |
 | 归母所有者权益 | 60,000 | 55,000 |
+| 应收账款 | 20,000 | 18,000 |
+| 存货 | 30,000 | 25,000 |
+| 应付账款 | 15,000 | 13,000 |
+| 合同负债 | 10,000 | 8,000 |
 
 ## 5. 现金流量表
 | 项目 (百万元) | 2024 | 2023 |
@@ -64,6 +77,23 @@ def test_metric_math_is_none_tolerant():
     assert yoy_pct(1, 0) is None
 
 
+def test_roe_history_never_labels_four_years_as_five_year_average():
+    four_years = roe_history_summary(
+        ["2025", "2024", "2023", "2022"],
+        [19.36, 24.81, 51.01, 62.67],
+    )
+    assert four_years["n"] == 4
+    assert four_years["available_mean"] == pytest.approx(39.4625)
+    assert four_years["five_year_mean"] is None
+
+
+def test_working_capital_bridge_treats_contract_liability_as_financing():
+    sections = parse_sections(SAMPLE_PACK)
+    years, balance = parse_matrix(sections["4"])
+    bridge = selected_working_capital_bridge(balance, years)
+    assert bridge[0]["cash_effect_proxy"] == -3_000
+
+
 def test_report_ignores_quarter_and_aggregates_same_year_dividends():
     sections = parse_sections(SAMPLE_PACK)
     periods, income = parse_matrix(sections["3"])
@@ -75,6 +105,10 @@ def test_report_ignores_quarter_and_aggregates_same_year_dividends():
     assert "| 2024 | 60.00 | 100.00 | 60.00 |" in report
     assert "36.00" in report
     assert "2025Q1 百万元" not in report
+    assert "roe_history_years = 2" in report
+    assert "roe_5y_avg = null" in report
+    assert "| 2024 vs 2023 | 20.00 | 50.00 | 20.00 | 20.00 | -30.00 |" in report
+    assert "合同负债代表客户预收融资" in report
 
 
 def test_cli_writes_budget_and_rejects_unparseable_input(tmp_path):

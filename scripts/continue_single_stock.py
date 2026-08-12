@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import re
 import shlex
+import sys
 from pathlib import Path
 from string import Template
 
@@ -39,12 +40,12 @@ def require_file(path: Path) -> None:
 def detect_code_prefix(output_dir: Path) -> str:
     data_pack_path = output_dir / "data_pack_market.md"
     text = data_pack_path.read_text(encoding="utf-8") if data_pack_path.exists() else ""
-    code_match = re.search(r"股票代码\s*(?:\||[:：])\s*([0-9]{6}[._](?:SH|SZ))", text, re.IGNORECASE)
+    code_match = re.search(r"股票代码\s*(?:\||[:：])\s*([0-9]{6}[._](?:SH|SZ|BJ))", text, re.IGNORECASE)
     if code_match:
         return code_match.group(1).strip().replace('.', '_').upper()
     for pattern in ("*_qualitative_report.md", "*_turtle_report.md", "*_valuation_report.md"):
         for path in sorted(output_dir.glob(pattern)):
-            match = re.match(r"(\d{6}_(?:SH|SZ))_", path.name, re.IGNORECASE)
+            match = re.match(r"(\d{6}_(?:SH|SZ|BJ))_", path.name, re.IGNORECASE)
             if match:
                 return match.group(1).upper()
     raise SystemExit(f"Unable to determine stock code from: {data_pack_path}")
@@ -65,12 +66,14 @@ def _validation_argv(
 ) -> list[str]:
     """Build a shell-independent report validation argument vector."""
     argv = [
-        "python",
+        sys.executable,
         str(project_root / "scripts" / "validate_reports.py"),
         str(target),
     ]
     if report_type:
         argv.extend(["--type", report_type])
+    if report_type == "qualitative":
+        argv.extend(["--quality-contract", "current"])
     return argv
 
 
@@ -86,7 +89,7 @@ def _validation_command(
 def _consistency_argv(project_root: Path, target: Path, output: Path) -> list[str]:
     """Build the advisory cross-passage audit argument vector."""
     return [
-        "python",
+        sys.executable,
         str(project_root / "scripts" / "report_consistency.py"),
         "--report",
         str(target),
@@ -132,7 +135,7 @@ def build_step5_prompt(project_root: Path, output_dir: Path, qualitative_report_
         f"- {output_dir / 'data_pack_market.md'}",
         f"- {output_dir / 'annual_report.pdf'}",
         f"- {output_dir / 'pdf_sections.json'}",
-        f"- {output_dir / 'computed_metrics.md'}（若已生成：CM§1-CM§5 直接引用，禁止重复心算）",
+        f"- {output_dir / 'computed_metrics.md'}（若已生成：CM§1-CM§6 直接引用，禁止重复心算）",
     ]
     data_pack_report = output_dir / "data_pack_report.md"
     if data_pack_report.exists():

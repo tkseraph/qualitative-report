@@ -168,7 +168,7 @@ export TUSHARE_TOKEN='your_token_here'
 runner 直接生成的中间件：
 - `annual_report.pdf`
 - `data_pack_market.md`
-- `computed_metrics.md`（CM§1-CM§5 确定性预算：单位换算、同比、多年统计、分红率和 PE 网格）
+- `computed_metrics.md`（CM§1-CM§6 确定性预算：单位换算、同比、多年统计与 ROE 历史覆盖、分红率、PE 网格和项目营运资金现金桥）
 - `pdf_sections.json`
 - `data_pack_report.md`（如构建成功）
 - `valuation_computed.md`
@@ -240,6 +240,21 @@ python scripts/validate_reports.py output/<code_company>
 
 这个流程的目标是把本地闭环固定为：`run_single_stock.py → continue_single_stock.py --stage all → 人工生成三报告 → 目录验收`。
 
+若只生成 HTML qualitative 成品，优先使用 production profile。默认仅准备证据、写作、审阅和定向修订提示；本机已配置 `claude -p` 时，可让脚本依次执行证据/论点账本、初稿、独立语义审阅、结构保护下的定向修订、复审、Markdown 验收、HTML 渲染和 DOM 清单验收：
+
+```bash
+.venv/bin/python scripts/generate_qualitative.py \
+  --output-dir output/<code_company> \
+  --profile production
+
+.venv/bin/python scripts/generate_qualitative.py \
+  --output-dir output/<code_company> \
+  --profile production \
+  --run-nested-claude
+```
+
+当前新报告使用分析质量合同 2.1；旧报告仍可由 validator 的 `auto` 模式读取。
+
 ### 三报告成品验收
 
 `scripts/validate_reports.py` 用于检查一个 A 股标的输出目录是否已经达到三份正式报告的基础成品结构。它不会生成报告，只检查 qualitative、turtle、valuation 三份 Markdown 是否包含目标网页案例抽象出的关键模块。
@@ -249,9 +264,10 @@ python scripts/validate_reports.py output/<code_company>
 python scripts/validate_reports.py output/000538_acceptance
 
 # 分别检查单个报告文件
-python scripts/validate_reports.py \
+.venv/bin/python scripts/validate_reports.py \
   output/000538_acceptance/000538_SZ_qualitative_report.md \
-  --type qualitative
+  --type qualitative \
+  --quality-contract current
 
 python scripts/validate_reports.py \
   output/000538_acceptance/000538_SZ_turtle_report.md \
@@ -263,7 +279,7 @@ python scripts/validate_reports.py \
 ```
 
 验收器覆盖的核心结构：
-- qualitative：Business Quality Verdict、固定 `| 项目 | 结论 |` 首屏摘要卡、Quality Snapshot、五个核心发现、D1-D6 / 维度一至维度六、本章小结、核心矛盾与反证条件、深度总结、观察变量、数据来源、免责声明、结构化参数（机器读取 / 附录）。结构化参数必须包含 `roe_5y_avg`、`moat_rating`、`moat_sustainability`、`management_rating`、`cyclicality`、`cycle_position`、`capital_intensity`、`entry_barrier`、`moat_existence`。
+- qualitative：Business Quality Verdict、固定 `| 项目 | 结论 |` 首屏摘要卡、Quality Snapshot、五个核心发现、D1-D6 / 维度一至维度六、本章小结、核心矛盾与反证条件、深度总结、观察变量、数据来源、免责声明、结构化参数（机器读取 / 附录）。当前合同还检查项目营运资金现金桥、至少两种护城河竞争假说、订单周期传导、SOTP 经济可分拆性和 ROE 历史覆盖；结构化参数新增 `analysis_contract_version`、`roe_history_years`、`roe_available_years_avg`、`sotp_economic_separability`。
 - turtle：Strategy Verdict、Turtle Snapshot、Owner Earnings、穿透回报率、安全边际、价值陷阱、投资论点卡、基本面止损、事件监控、数据来源、免责声明。
 - valuation：Valuation Verdict、Valuation Snapshot、公司分类、方法权重、WACC、定性调整、DCF、PE Band、DDM、交叉验证、反向估值、估值区间、数据来源、免责声明。
 
@@ -272,7 +288,7 @@ python scripts/validate_reports.py \
 定性报告还提供两层数字质量辅助检查：
 
 ```bash
-# 由 data pack 生成 CM§1-CM§5 确定性预算
+# 由 data pack 生成 CM§1-CM§6 确定性预算
 python scripts/quality_control.py \
   --input output/<code_company>/data_pack_market.md \
   --output output/<code_company>/computed_metrics.md

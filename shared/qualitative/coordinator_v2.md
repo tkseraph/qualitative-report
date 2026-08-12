@@ -17,7 +17,7 @@
 **解析规则**：
 1. 从用户消息中提取股票代码/名称
 2. 若用户提供了 PDF 链接/路径 → 下载到 `{output_dir}/annual_report.pdf`
-3. 代码格式化：A股 → `XXXXXX.SH/SZ`；港股 → `XXXXX.HK`；美股 → `AAPL.US`
+3. 代码格式化：A股 → `XXXXXX.SH/SZ/BJ`；港股 → `XXXXX.HK`；美股 → `AAPL.US`
 
 ---
 
@@ -71,7 +71,7 @@ python3 scripts/quality_control.py \
   --output {output_dir}/computed_metrics.md
 ```
 
-`computed_metrics.md` 提供 CM§1-CM§5：亿元换算、同比、多年统计、分红支付率和 PE 网格。成功时 Step 2 直接引用并标注 `[src: CM§N]`，禁止重复心算；输入缺失或部分 CM 跳过时允许降级，但必须展示未覆盖计算的完整算式并记录缺口，不阻断提示词准备。
+`computed_metrics.md` 提供 CM§1-CM§6：亿元换算、同比、多年统计与 ROE 历史覆盖、分红支付率、PE 网格和项目营运资金现金桥。成功时内部证据账本直接引用 CM 定位，禁止重复心算；输入缺失或部分 CM 跳过时允许降级，但必须展示未覆盖计算的完整算式并记录缺口，不阻断提示词准备。公开报告不得保留 `[src: ...]` 标记。
 
 ### 1B：PDF 获取与加载
 
@@ -192,14 +192,14 @@ Agent(
 
   数据文件：
     - Tushare 数据：{output_dir}/data_pack_market.md
-    - 确定性预算：{output_dir}/computed_metrics.md（若存在；CM 覆盖项直接引用）
+    - 确定性预算：{output_dir}/computed_metrics.md（若存在；CM§1-CM§6 覆盖项直接引用）
     - 同业证据包：{output_dir}/peer_evidence.md（若存在，D2 优先读取；若缺失但 §8 同业信息不足，先按 data_collection.md 生成）
     - PDF 附注结构化数据：{output_dir}/data_pack_report.md（若存在，则作为优先读取的增强输入）
     - 年报 PDF：已在 context 中加载（如有）
 
   按照 qualitative_assessment_v2.md 的 6 维度框架进行完整分析。
   特别注意"收入质量分解"和"交叉验证"部分；若存在 data_pack_report.md，优先引用其中的 P13/P4/P6/SUB（P3 若有则一并使用）补强 D1/D4/D6 判断。若缺失，则继续按当前主路径完成分析。
-  支撑评级的数字使用 [src: CM§N] / [src: DP§N] / [src: 年报P.N] / [src: Web] / [src: 推断] 溯源，并在附录生成“数字溯源汇总”。这是一项辅助质量要求，不替代 shared/report_contract.json 与 scripts/validate_reports.py 的现有机器契约。
+  支撑评级的数字只在内部 `qualitative_evidence.json` / `qualitative_argument_map.json` 使用 CM、DP、年报页码或外部来源定位；公开报告只保留读者可理解的来源名称、年份、页码或口径，不得出现 `[src: ...]`。这是一项辅助质量要求，不替代 shared/report_contract.json 与 scripts/validate_reports.py 的现有机器契约。
   行业速查表只可用于发现异常和提出复核问题；其约 2024-2025 年历史经验可能过时，不得直接支撑评级、阈值或当期结论。
   若 data_pack_market.md 的 §8 行业与竞争缺少主要竞争对手、同业对比或竞品对标，或仍含 `待Agent WebSearch补充`，先执行 WebSearch 数据补充（按 data_collection.md）并使用全年口径生成 peer_evidence.md，再写 D2。D2 使用 peer_evidence.md 时必须遵守 Source type 和 Confidence：High 可支撑同业表和护城河判断，Medium 只作辅助背景，Low 只能提示方向或缺口，低置信来源不得支撑核心评级。peer set 控制在 2-4 个具名同业，指标控制在 4-6 项 WebSearch 能可靠覆盖的数据；不追求穷尽同业，不得扩展成全行业数据库，找不到统一口径就写 Evidence Gaps。强周期公司的 D3 轻量外部周期证据只补 2-3 个外部周期变量，例如需求 / 产量、价格趋势、主要成本变量，且必须是年度或全年口径；不新增庞大的周期数据库，找不到就写缺口。
   最终 Markdown 必须严格保留 qualitative_assessment_v2.md 的成品报告外壳：Business Quality Verdict / 商业质量总体评级、Quality Snapshot / 质量快照、Executive Summary / 执行摘要、未来观察变量、结构化参数、数据来源与免责声明。

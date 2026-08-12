@@ -378,6 +378,41 @@ def _has_d1_business_formula(section_text: str) -> bool:
     )
 
 
+def _has_d1_working_capital_cash_bridge(section_text: str) -> bool:
+    """Require cash attribution that separates assets from operating financing."""
+    if not section_text:
+        return False
+    has_cash_bridge = _contains_any(section_text, ("OCF", "经营现金流", "现金流")) and all(
+        _contains_any(section_text, alternatives)
+        for alternatives in (
+            ("应收",),
+            ("存货", "库存"),
+            ("应付", "供应商信用"),
+            ("合同负债", "预收"),
+        )
+    )
+    separates_financing = _contains_any(
+        section_text,
+        ("客户融资", "经营融资", "提供融资", "融资来源", "资金来源", "预收融资"),
+    ) and _contains_any(
+        section_text,
+        ("占用", "耗用现金", "消耗现金"),
+    )
+    has_attribution = _contains_any(
+        section_text,
+        ("现金桥", "桥接", "解释了经营现金流", "解释OCF", "现金影响", "现金贡献"),
+    )
+    return has_cash_bridge and separates_financing and has_attribution
+
+
+def _requires_d1_working_capital_cash_bridge(md_text: str, section_text: str) -> bool:
+    collection_mode = structured_param(md_text, "collection_mode")
+    return collection_mode in {"先款后货", "垫资回收", "先货后款"} or (
+        _contains_any(section_text, ("项目", "定制", "工程"))
+        and _contains_any(section_text, ("存货", "合同负债", "预收"))
+    )
+
+
 def _has_d2_moat_falsification(section_text: str) -> bool:
     if not section_text or "护城河证伪表" not in section_text:
         return False
@@ -412,6 +447,30 @@ def _has_d2_moat_falsification(section_text: str) -> bool:
         if competing_hypotheses and verdict and rating_boundary:
             return True
     return False
+
+
+def _has_d2_competing_hypothesis_synthesis(section_text: str) -> bool:
+    if not section_text:
+        return False
+    hypothesis_markers = re.findall(
+        r"(?:第一种|第二种|假说一|假说二|假设一|假设二|解释一|解释二)[^\n。；;]{0,100}(?:假说|假设|解释)?",
+        section_text,
+    )
+    if len(hypothesis_markers) < 2:
+        return False
+    has_evidence_verdict = _contains_any(
+        section_text,
+        ("支持第一种", "支持第二种", "保留", "被否定", "不成立", "不足以排除", "不能排除"),
+    )
+    has_peer_counterexample = bool(re.search(
+        r"(?:同业|同行|竞品|可比公司)[^\n。；;]{0,100}(?:反例|不支持|接近|更高|更低|边界|不能证明)",
+        section_text,
+    ))
+    has_rating_effect = _contains_any(
+        section_text,
+        ("评级维持", "评级上调", "评级上修", "评级下调", "评级影响", "护城河评为", "综合评级"),
+    )
+    return has_evidence_verdict and has_peer_counterexample and has_rating_effect
 
 
 def _has_d2_moat_interrogation_chain(section_text: str) -> bool:
@@ -498,6 +557,25 @@ def _has_d3_cycle_data_evidence(section_text: str) -> bool:
         if all(_contains_any(block, alternatives) for alternatives in required_groups):
             return True
     return False
+
+
+def _has_order_cycle_transmission(section_text: str) -> bool:
+    if not section_text or not _contains_any(section_text, ("当前阶段", "当前处于", "当前无法", "当前判断")):
+        return False
+    stages = (
+        ("客户资本开支", "客户扩产", "下游需求", "客户需求"),
+        ("设备订单", "订单"),
+        ("制造", "生产", "交付"),
+        ("验收",),
+        ("收入", "收入确认"),
+        ("回款", "现金", "经营现金流"),
+    )
+    has_all_stages = all(_contains_any(section_text, alternatives) for alternatives in stages)
+    has_causal_language = _contains_any(
+        section_text,
+        ("→", "传导", "先改变", "再改变", "最终通过", "进入收入", "转化为现金"),
+    )
+    return has_all_stages and has_causal_language
 
 
 def _has_d5_management_narrative_audit(section_text: str) -> bool:
@@ -628,6 +706,52 @@ def _has_d6_sotp_mode_contract(md_text: str, section_text: str) -> bool:
         section_text,
         ("重复计价", "重复计算", "重复加总", "不可加回", "不能再加"),
     ) and _contains_any(section_text, ("升级", "触发", "启动"))
+
+
+def _has_d6_economic_separability(md_text: str, section_text: str) -> bool:
+    value = structured_param(md_text, "sotp_economic_separability")
+    allowed = QUALITATIVE_CONTRACT["analysis_quality"]["sotp_economic_separability_values"]
+    if value not in allowed:
+        return False
+    mode = structured_param(md_text, "sotp_mode")
+    if mode == "not_applicable":
+        return value == "not_applicable" and _contains_any(section_text, ("不适用", "经济可分拆"))
+    if mode == "full" and value != "demonstrated":
+        return False
+    topic_groups = (
+        ("客户",),
+        ("产品", "技术", "工艺"),
+        ("管理", "共享资源", "资源分摊"),
+        ("现金流",),
+        ("净债务", "债务"),
+        ("资本开支", "Capex"),
+        ("内部交易", "内部抵销", "关联交易"),
+    )
+    return _contains_any(section_text, ("经济可分拆", "经济独立", "独立分拆")) and sum(
+        1 for alternatives in topic_groups if _contains_any(section_text, alternatives)
+    ) >= 6
+
+
+def _has_roe_history_coverage(md_text: str) -> bool:
+    years_text = structured_param(md_text, "roe_history_years")
+    available_avg = structured_param(md_text, "roe_available_years_avg")
+    five_year_avg = structured_param(md_text, "roe_5y_avg")
+    match = re.search(r"\d+", years_text)
+    if not match or not available_avg:
+        return False
+    years = int(match.group(0))
+    null_values = {"null", "none", "n/a", "na", "不适用", "—", "-"}
+    if years < 5:
+        return five_year_avg.strip().lower() in null_values
+    return bool(five_year_avg) and five_year_avg.strip().lower() not in null_values
+
+
+def _uses_current_analysis_contract(md_text: str, quality_contract: str) -> bool:
+    if quality_contract == "current":
+        return True
+    if quality_contract == "legacy":
+        return False
+    return bool(structured_param(md_text, "analysis_contract_version"))
 
 
 def _uses_readable_money_units(md_text: str) -> bool:
@@ -966,6 +1090,19 @@ def _has_chart_routing_metadata_contract(md_text: str) -> bool:
     return len(chart_ids) == len(set(chart_ids))
 
 
+def _has_current_golden_chart_contract(md_text: str) -> bool:
+    expected = int(QUALITATIVE_CONTRACT["html"]["golden_core_chart_count"])
+    if len(_chart_ready_metadata_lines(md_text)) != expected:
+        return False
+    titles = re.findall(
+        r"^###\s+图表([一二三四五六七八九十]+)[：:]",
+        md_text,
+        flags=re.MULTILINE,
+    )
+    expected_titles = set(list("一二三四五六")[:expected])
+    return len(titles) == expected and set(titles) == expected_titles
+
+
 def _has_sample_level_chart_ready_coverage(md_text: str) -> bool:
     if not _is_cycle_or_heavy_asset_report(md_text):
         return True
@@ -1215,7 +1352,11 @@ def _finished_report_quality_issues(md_text: str) -> list[tuple[str, str]]:
     return []
 
 
-def _content_quality_issues(md_text: str, report_type: str) -> list[tuple[str, str]]:
+def _content_quality_issues(
+    md_text: str,
+    report_type: str,
+    quality_contract: str = "auto",
+) -> list[tuple[str, str]]:
     normalized = _normalize(md_text)
     issues: list[tuple[str, str]] = _finished_report_quality_issues(md_text)
     if report_type == "qualitative":
@@ -1496,6 +1637,49 @@ def _content_quality_issues(md_text: str, report_type: str) -> list[tuple[str, s
                 "qualitative_machine_fields",
                 "Structured parameters must be labeled as a machine-readable appendix and include required qualitative machine fields.",
             ))
+        if _uses_current_analysis_contract(md_text, quality_contract):
+            analysis_quality = QUALITATIVE_CONTRACT["analysis_quality"]
+            current_fields = tuple(analysis_quality["current_machine_fields"])
+            if structured_param(md_text, "analysis_contract_version") != analysis_quality["version"] or not all(
+                structured_param(md_text, field) for field in current_fields
+            ):
+                issues.append((
+                    "qualitative_current_analysis_machine_fields",
+                    "Current qualitative quality contract requires analysis_contract_version 2.1, ROE history coverage fields, and SOTP economic separability.",
+                ))
+            d1_current = dimension_sections_by_index.get(1, "")
+            if _requires_d1_working_capital_cash_bridge(md_text, d1_current) and not _has_d1_working_capital_cash_bridge(d1_current):
+                issues.append((
+                    "qualitative_working_capital_cash_bridge",
+                    "Current-contract D1 must reconcile OCF through receivables, inventory, payables, and contract liabilities while separating asset occupation from operating-liability financing.",
+                ))
+            if not _has_d2_competing_hypothesis_synthesis(dimension_sections_by_index.get(2, "")):
+                issues.append((
+                    "qualitative_competing_moat_hypotheses",
+                    "Current-contract D2 must compare at least two falsifiable moat hypotheses, use a peer counterexample, and state the rating effect.",
+                ))
+            if "订单周期" in structured_param(md_text, "cyclicality") and not _has_order_cycle_transmission(
+                dimension_sections_by_index.get(3, "")
+            ):
+                issues.append((
+                    "qualitative_order_cycle_transmission",
+                    "Order-cycle reports must trace customer demand/capex through order, delivery, acceptance, revenue, and cash, and identify the current stage.",
+                ))
+            if not _has_d6_economic_separability(md_text, dimension_sections_by_index.get(6, "")):
+                issues.append((
+                    "qualitative_sotp_economic_separability",
+                    "Current-contract D6 must test economic separability across customers, technology, shared resources, cash flow, debt, capex, and internal transactions before choosing SOTP depth.",
+                ))
+            if not _has_roe_history_coverage(md_text):
+                issues.append((
+                    "qualitative_roe_history_coverage",
+                    "Current-contract ROE fields must distinguish available-history average from a true five-year average; fewer than five annual observations require roe_5y_avg: null.",
+                ))
+            if not _has_current_golden_chart_contract(md_text):
+                issues.append((
+                    "qualitative_current_core_chart_contract",
+                    "Current-contract HTML qualitative reports must preserve exactly six numbered core charts (图表一 through 图表六) with explicit chart_ready routing.",
+                ))
         source_index = _heading_start_index(md_text, ("数据来源",))
         disclaimer_index = _heading_start_index(md_text, ("免责声明",))
         parameter_index = _heading_start_index(md_text, ("结构化参数",))
@@ -1645,7 +1829,12 @@ def _content_quality_issues(md_text: str, report_type: str) -> list[tuple[str, s
     return issues
 
 
-def validate_markdown(md_text: str, report_type: str, path: str = "<memory>") -> ValidationResult:
+def validate_markdown(
+    md_text: str,
+    report_type: str,
+    path: str = "<memory>",
+    quality_contract: str = "auto",
+) -> ValidationResult:
     schema = REPORT_SCHEMAS.get(report_type)
     if schema is None:
         known = ", ".join(sorted(REPORT_SCHEMAS))
@@ -1659,7 +1848,7 @@ def validate_markdown(md_text: str, report_type: str, path: str = "<memory>") ->
 
     missing_requirements = _missing_requirements(md_text, schema)
     placeholder_messages = _template_placeholder_messages(md_text)
-    content_issues = _content_quality_issues(md_text, report_type)
+    content_issues = _content_quality_issues(md_text, report_type, quality_contract)
     messages = [
         f"Missing {requirement.name}: {requirement.description} "
         f"(expected one of: {', '.join(requirement.any_keywords)})"
@@ -1678,7 +1867,11 @@ def validate_markdown(md_text: str, report_type: str, path: str = "<memory>") ->
     )
 
 
-def validate_file(path: Path, report_type: str) -> ValidationResult:
+def validate_file(
+    path: Path,
+    report_type: str,
+    quality_contract: str = "auto",
+) -> ValidationResult:
     if not path.exists():
         return ValidationResult(
             report_type=report_type,
@@ -1687,7 +1880,12 @@ def validate_file(path: Path, report_type: str) -> ValidationResult:
             missing=["file"],
             messages=[f"Missing file: {path}"],
         )
-    return validate_markdown(path.read_text(encoding="utf-8"), report_type, str(path))
+    return validate_markdown(
+        path.read_text(encoding="utf-8"),
+        report_type,
+        str(path),
+        quality_contract,
+    )
 
 
 def _find_matches(output_dir: Path, pattern: str) -> list[Path]:
@@ -1728,7 +1926,7 @@ def _normalize_company_identity(identity: str) -> str:
 def _stock_codes(md_text: str) -> set[str]:
     return {
         f"{match.group(1)}.{match.group(2).upper()}"
-        for match in re.finditer(r"\b(\d{6})[._](SH|SZ)\b", md_text, re.IGNORECASE)
+        for match in re.finditer(r"\b(\d{6})[._](SH|SZ|BJ)\b", md_text, re.IGNORECASE)
     }
 
 
@@ -1769,7 +1967,10 @@ def _validate_content_identity(selected_files: dict[str, Path]) -> ValidationRes
     )
 
 
-def validate_output_dir(output_dir: Path) -> list[ValidationResult]:
+def validate_output_dir(
+    output_dir: Path,
+    quality_contract: str = "auto",
+) -> list[ValidationResult]:
     report_matches = {
         "qualitative": _find_matches(output_dir, "*_qualitative_report.md"),
         "turtle": _find_matches(output_dir, "*_turtle_report.md"),
@@ -1804,7 +2005,7 @@ def validate_output_dir(output_dir: Path) -> list[ValidationResult]:
             )
         else:
             selected_files[report_type] = matches[0]
-            results.append(validate_file(matches[0], report_type))
+            results.append(validate_file(matches[0], report_type, quality_contract))
 
     if len(selected_files) == len(REPORT_SCHEMAS):
         prefixes = {
@@ -1845,17 +2046,23 @@ def main() -> None:
         choices=sorted(REPORT_SCHEMAS),
         help="Report type when validating a single Markdown file",
     )
+    parser.add_argument(
+        "--quality-contract",
+        choices=("auto", "current", "legacy"),
+        default="auto",
+        help="Qualitative quality-contract level; current enforces the latest generation rules",
+    )
     args = parser.parse_args()
 
     path = Path(args.path)
     if not path.exists():
         raise SystemExit(f"Path not found: {path}")
     if path.is_dir():
-        results = validate_output_dir(path)
+        results = validate_output_dir(path, args.quality_contract)
     else:
         if args.type is None:
             raise SystemExit("--type is required when validating a single Markdown file")
-        results = [validate_file(path, args.type)]
+        results = [validate_file(path, args.type, args.quality_contract)]
 
     for result in results:
         _print_result(result)

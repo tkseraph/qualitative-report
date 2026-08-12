@@ -1420,7 +1420,7 @@ def render_report_html(
     # --- Generate slug ---
     slug = ""
     if report["stock_code"]:
-        code = report["stock_code"].replace(".SH", "").replace(".SZ", "").replace(".HK", "").replace(".US", "")
+        code = report["stock_code"].replace(".SH", "").replace(".SZ", "").replace(".BJ", "").replace(".HK", "").replace(".US", "")
         name = report["company_name"] or ""
         # Simple slug: company-code-qualitative
         slug = f"{name}-{code}-qualitative".lower().replace(" ", "-")

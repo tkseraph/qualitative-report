@@ -75,6 +75,9 @@ class TestValidateStockCode:
     def test_sz_gem_code(self):
         assert validate_stock_code("300750.SZ") == "300750.SZ"
 
+    def test_bj_code(self):
+        assert validate_stock_code("920117.BJ") == "920117.BJ"
+
     # HK with suffix
     def test_hk_code(self):
         assert validate_stock_code("00700.HK") == "00700.HK"
@@ -88,6 +91,12 @@ class TestValidateStockCode:
 
     def test_plain_gem(self):
         assert validate_stock_code("300750") == "300750.SZ"
+
+    def test_plain_bj(self):
+        assert validate_stock_code("920117") == "920117.BJ"
+
+    def test_plain_legacy_bj(self):
+        assert validate_stock_code("874520") == "874520.BJ"
 
     def test_plain_hk(self):
         assert validate_stock_code("00700") == "00700.HK"

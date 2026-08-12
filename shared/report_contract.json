@@ -23,6 +23,28 @@
         "display_format": "{grade} / {label}",
         "display_with_outlook_format": "{grade} / {label} · {outlook}"
       },
+      "analysis_quality": {
+        "version": "2.1",
+        "current_machine_fields": [
+          "analysis_contract_version",
+          "roe_history_years",
+          "roe_available_years_avg",
+          "sotp_economic_separability"
+        ],
+        "sotp_economic_separability_values": [
+          "not_applicable",
+          "not_demonstrated",
+          "partial",
+          "demonstrated"
+        ],
+        "required_reasoning_checks": [
+          "working_capital_cash_bridge",
+          "competing_moat_hypotheses",
+          "order_cycle_transmission",
+          "sotp_economic_separability",
+          "roe_history_coverage"
+        ]
+      },
       "d6": {
         "decision_heading": "### SOTP 触发决策表",
         "required_topics": ["是否触发 SOTP", "子公司利润", "投资收益", "母合差异", "非经常性损益", "控股折价", "触发阈值", "计算依据"],

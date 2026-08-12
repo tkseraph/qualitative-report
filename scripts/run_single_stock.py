@@ -46,7 +46,7 @@ else:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run deterministic single-stock pipeline steps")
-    parser.add_argument("--code", required=True, help="Stock code, e.g. 000538.SZ")
+    parser.add_argument("--code", required=True, help="Stock code, e.g. 000538.SZ or 920117.BJ")
     parser.add_argument("--pdf", required=True, help="Path to annual report PDF")
     parser.add_argument("--output-dir", default=None, help="Output directory (default: output/{code})")
     parser.add_argument("--html", action="store_true", help="Reserved for future use; HTML is not part of v1 main flow")

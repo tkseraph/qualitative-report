@@ -96,6 +96,14 @@ class TestBuildFilename:
         result = build_filename("SZ300750", "年报", "2024")
         assert result.startswith("300750_")
 
+    def test_strips_bj_prefix(self):
+        result = build_filename("BJ920117", "年报", "2025")
+        assert result == "920117_2025_年报.pdf"
+
+    def test_strips_bj_suffix(self):
+        result = build_filename("920117.BJ", "年报", "2025")
+        assert result == "920117_2025_年报.pdf"
+
     def test_lowercase_prefix_stripped(self):
         result = build_filename("sh600887", "年报", "2024")
         assert result.startswith("600887_")

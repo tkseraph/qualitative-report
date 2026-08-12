@@ -4,7 +4,8 @@
 ``data_pack_market.md`` stores A-share financial tables in millions.  This
 module converts the small, high-risk arithmetic surface into a generated
 ``computed_metrics.md`` budget so the report writer can cite values instead of
-recomputing unit conversions, growth rates, payout ratios, and PE scenarios.
+recomputing unit conversions, growth rates, payout ratios, working-capital
+bridges, ROE-history coverage, and PE scenarios.
 
 The module supports both invocation styles::
 
@@ -30,8 +31,8 @@ else:
 
 
 HEADER_WARNING = (
-    "> ⚠️ 以下数值由 Python 确定性计算。报告应直接引用并标注 "
-    "`[src: CM§N]`，不要重复心算。百万元→亿元 = 原值 ÷ 100。\n"
+    "> ⚠️ 以下数值由 Python 确定性计算。内部证据账本应直接引用 CM 定位，"
+    "公开报告不得保留 `[src: ...]`；不要重复心算。百万元→亿元 = 原值 ÷ 100。\n"
 )
 
 
@@ -49,6 +50,30 @@ def multi_year_stats(values: list[Optional[float]]) -> dict[str, Optional[float]
         "mean": sum(available) / len(available),
         "median": statistics.median(available),
         "n": len(available),
+    }
+
+
+def roe_history_summary(
+    periods: list[str],
+    values: list[Optional[float]],
+) -> dict[str, object]:
+    """Separate an available-history mean from a true five-year ROE mean."""
+    observations = [
+        (period, value)
+        for period, value in zip(periods, values)
+        if re.fullmatch(r"\d{4}", period) and value is not None
+    ][:5]
+    available_values = [value for _, value in observations]
+    available_mean = (
+        sum(available_values) / len(available_values)
+        if available_values
+        else None
+    )
+    return {
+        "years": [period for period, _ in observations],
+        "n": len(observations),
+        "available_mean": available_mean,
+        "five_year_mean": available_mean if len(observations) == 5 else None,
     }
 
 
@@ -190,12 +215,69 @@ def _dividends_by_year(block: str) -> dict[str, float]:
     return totals
 
 
+def _yearly_change(
+    data: dict[str, dict[str, Optional[float]]],
+    item_key: Optional[str],
+    current_year: str,
+    previous_year: str,
+) -> Optional[float]:
+    if not item_key:
+        return None
+    row = data.get(item_key, {})
+    current = row.get(current_year)
+    previous = row.get(previous_year)
+    if current is None or previous is None:
+        return None
+    return current - previous
+
+
+def selected_working_capital_bridge(
+    balance: dict[str, dict[str, Optional[float]]],
+    years: list[str],
+) -> list[dict[str, Optional[float] | str]]:
+    """Build a cash-effect proxy from the four project working-capital anchors.
+
+    Positive asset growth consumes cash. Positive operating-liability growth
+    provides financing. The proxy deliberately excludes all other working-
+    capital accounts and therefore must not be presented as an OCF identity.
+    """
+    keys = {
+        "receivables": find_item(balance, "应收账款"),
+        "inventory": find_item(balance, "存货"),
+        "payables": find_item(balance, "应付账款"),
+        "contract_liabilities": find_item(balance, "合同负债", "预收款项"),
+    }
+    rows: list[dict[str, Optional[float] | str]] = []
+    for index in range(len(years) - 1):
+        current_year = years[index]
+        previous_year = years[index + 1]
+        changes = {
+            name: _yearly_change(balance, key, current_year, previous_year)
+            for name, key in keys.items()
+        }
+        available = [value for value in changes.values() if value is not None]
+        proxy = None
+        if len(available) == len(changes):
+            proxy = (
+                -float(changes["receivables"])
+                - float(changes["inventory"])
+                + float(changes["payables"])
+                + float(changes["contract_liabilities"])
+            )
+        rows.append({
+            "period": f"{current_year} vs {previous_year}",
+            **changes,
+            "cash_effect_proxy": proxy,
+        })
+    return rows
+
+
 def build_report(
     sections: dict[str, str],
     pe_bands: list[float],
     discounts: list[float],
 ) -> str:
-    """Render the deterministic CM§1-CM§5 metric budget."""
+    """Render the deterministic CM§1-CM§6 metric budget."""
     parts: list[str] = [
         "# 计算结果 — computed_metrics.md（Python 确定性预算）\n",
         HEADER_WARNING,
@@ -255,7 +337,7 @@ def build_report(
             rows.append([label] + cells)
         parts.extend([format_table(headers, rows, ["l"] + ["r"] * (len(headers) - 1)), ""])
 
-    parts.append(format_header(2, "CM§3 多年统计（均值 / 中位数）"))
+    parts.append(format_header(2, "CM§3 多年统计与 ROE 历史覆盖（均值 / 中位数）"))
     if not years:
         parts.append("> ⚠️ CM§3 跳过：缺少年度序列。\n")
     else:
@@ -277,6 +359,30 @@ def build_report(
                 str(stats["n"]),
             ])
         parts.extend([format_table(["指标", "均值", "中位数", "年数"], rows, ["l", "r", "r", "r"]), ""])
+        roe_years = _full_years(indicator_periods)
+        roe_values = _series(
+            indicators,
+            find_item(indicators, "ROE", "净资产收益率"),
+            roe_years,
+        )
+        roe_summary = roe_history_summary(roe_years, roe_values)
+        year_range = " / ".join(roe_summary["years"]) or "无"
+        five_year_value = (
+            format_number(roe_summary["five_year_mean"], divider=1)
+            if roe_summary["five_year_mean"] is not None
+            else "null"
+        )
+        parts.append(
+            "> ROE 机器字段预算："
+            f"roe_history_years = {roe_summary['n']}（{year_range}）；"
+            f"roe_available_years_avg = {format_number(roe_summary['available_mean'], divider=1)}%；"
+            f"roe_5y_avg = {five_year_value}"
+            + (
+                "%。\n"
+                if roe_summary["five_year_mean"] is not None
+                else "（可得完整年度少于 5 年，不得命名为五年平均）。\n"
+            )
+        )
 
     parts.append(format_header(2, "CM§4 分红支付率（总分红 ÷ 归母净利润）"))
     dividends = _dividends_by_year(sections.get("6", ""))
@@ -326,6 +432,42 @@ def build_report(
             for pe in pe_bands
         ]
         parts.extend([format_table(headers, rows, ["l"] + ["r"] * len(discounts)), ""])
+
+    parts.append(format_header(2, "CM§6 项目营运资金现金桥（精选科目，亿元）"))
+    balance_years = _full_years(parse_matrix(sections.get("4", ""))[0])
+    bridge_rows = selected_working_capital_bridge(balance, balance_years)
+    if not bridge_rows:
+        parts.append("> ⚠️ CM§6 跳过：资产负债表可比年度不足 2 年。\n")
+    else:
+        rows = [
+            [
+                str(row["period"]),
+                format_number(to_yi(row["receivables"]), divider=1),
+                format_number(to_yi(row["inventory"]), divider=1),
+                format_number(to_yi(row["payables"]), divider=1),
+                format_number(to_yi(row["contract_liabilities"]), divider=1),
+                format_number(to_yi(row["cash_effect_proxy"]), divider=1),
+            ]
+            for row in bridge_rows
+        ]
+        parts.extend([
+            format_table(
+                [
+                    "期间",
+                    "应收增加",
+                    "存货增加",
+                    "应付增加",
+                    "合同负债增加",
+                    "精选科目现金影响",
+                ],
+                rows,
+                ["l", "r", "r", "r", "r", "r"],
+            ),
+            "",
+            "> 精选科目现金影响 = -应收增加 - 存货增加 + 应付增加 + 合同负债增加。"
+            "合同负债代表客户预收融资，不能与应收、存货一起相加为“资本占用”；"
+            "该桥不含票据、税费及其他经营科目，不能替代现金流量表或管理层现金流解释。\n",
+        ])
 
     parts.append(
         "---\n*computed_metrics.md · 由 scripts/quality_control.py 生成 · 内部工件（非交付物）*"

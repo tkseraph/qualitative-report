@@ -4,16 +4,31 @@
 from __future__ import annotations
 
 import argparse
+import json
 import shlex
 import subprocess
 import sys
 from pathlib import Path
 
 try:
-    from .qualitative_artifacts import validate_sidecars, write_chain_prompts, write_provenance
+    from .qualitative_artifacts import (
+        compare_structure_snapshot,
+        validate_current_argument_quality,
+        validate_sidecars,
+        write_chain_prompts,
+        write_provenance,
+        write_structure_snapshot,
+    )
     from .qualitative_preflight import audit_inputs, write_manifest
 except ImportError:
-    from qualitative_artifacts import validate_sidecars, write_chain_prompts, write_provenance
+    from qualitative_artifacts import (
+        compare_structure_snapshot,
+        validate_current_argument_quality,
+        validate_sidecars,
+        write_chain_prompts,
+        write_provenance,
+        write_structure_snapshot,
+    )
     from qualitative_preflight import audit_inputs, write_manifest
 
 if __package__:
@@ -37,7 +52,14 @@ else:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Prepare a qualitative report generation prompt from an existing single-stock output directory")
     parser.add_argument("--output-dir", required=True, help="Existing output directory")
-    parser.add_argument("--run-nested-claude", action="store_true", help="Call claude -p from this script; off by default because nested Claude is unreliable in Claude Code sessions")
+    parser.add_argument(
+        "--run-nested-claude",
+        action="store_true",
+        help=(
+            "Call claude -p from this script; production runs evidence/argument, draft, "
+            "independent review, bounded revision, re-audit, validation and HTML rendering"
+        ),
+    )
     parser.add_argument(
         "--profile",
         choices=("draft", "production"),
@@ -67,6 +89,26 @@ def _model_command(prompt_path: Path) -> list[str]:
 
 def _format_command(command: list[str]) -> str:
     return shlex.join(command)
+
+
+def _run_model_stage(prompt_path: Path, log_path: Path, stage: str) -> int:
+    command = _model_command(prompt_path)
+    print(f"[generate] model stage={stage}")
+    print(f"[generate] model command: {_format_command(command)} < {prompt_path}")
+    print(f"[generate] model log: {log_path}")
+    with prompt_path.open("r", encoding="utf-8") as prompt_file, log_path.open(
+        "w", encoding="utf-8"
+    ) as log_file:
+        process = subprocess.run(
+            command,
+            stdin=prompt_file,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            text=True,
+            check=False,
+        )
+    print(f"[generate] model stage={stage} exit code: {process.returncode}")
+    return process.returncode
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -104,7 +146,6 @@ def main(argv: list[str] | None = None) -> int:
     prompt_path.write_text(prompt + "\n", encoding="utf-8")
     chain_prompts = write_chain_prompts(project_root, output_dir, target_output)
 
-    command = _model_command(prompt_path)
     consistency_path = output_dir / "consistency_report.md"
     consistency_argv = _consistency_argv(project_root, target_output, consistency_path)
     validation_argv = _validation_argv(project_root, target_output, "qualitative")
@@ -131,29 +172,86 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.profile == "production":
+        evidence_exit = _run_model_stage(
+            chain_prompts["step5_evidence_argument_prompt.md"],
+            output_dir / "generate_qualitative_evidence.log",
+            "evidence_argument",
+        )
+        if evidence_exit != 0:
+            return evidence_exit
         sidecar_errors = validate_sidecars(
             output_dir,
             ("qualitative_evidence.json", "qualitative_argument_map.json"),
         )
+        sidecar_errors.extend(
+            validate_current_argument_quality(
+                output_dir / "qualitative_argument_map.json"
+            )
+        )
         if sidecar_errors:
-            print("[generate] production sidecars must be created and validated before nested draft generation:")
+            print("[generate] production evidence/argument sidecars failed validation:")
             for error in sidecar_errors:
                 print(f"- {error}")
             return 2
 
-    print(f"[generate] log file: {log_path}")
-    print(f"[generate] model command: {_format_command(command)} < {prompt_path}")
-    print("[generate] running nested Claude; output is streamed to log file")
-    with prompt_path.open("r", encoding="utf-8") as prompt_file, log_path.open("w", encoding="utf-8") as log_file:
-        process = subprocess.run(command, stdin=prompt_file, stdout=log_file, stderr=subprocess.STDOUT, text=True, check=False)
-    print(f"[generate] model exit code: {process.returncode}")
-    if process.returncode != 0:
-        print(f"[generate] failed: inspect log file: {log_path}")
-        return process.returncode
+    draft_exit = _run_model_stage(prompt_path, log_path, "draft")
+    if draft_exit != 0:
+        return draft_exit
     if not target_output.exists():
         print(f"[generate] failed: target output was not created: {target_output}")
         print(f"[generate] inspect log file: {log_path}")
         return 1
+
+    if args.profile == "production":
+        baseline_path = write_structure_snapshot(
+            target_output,
+            output_dir / "pre_revision_structure.json",
+        )
+        review_prompt = chain_prompts["step5_content_review_prompt.md"]
+        review_exit = _run_model_stage(
+            review_prompt,
+            output_dir / "generate_qualitative_review.log",
+            "independent_review",
+        )
+        if review_exit != 0:
+            return review_exit
+        audit_errors = validate_sidecars(output_dir, ("qualitative_content_audit.json",))
+        if audit_errors:
+            print("[generate] independent content audit failed validation:")
+            for error in audit_errors:
+                print(f"- {error}")
+            return 2
+        audit_path = output_dir / "qualitative_content_audit.json"
+        audit = json.loads(audit_path.read_text(encoding="utf-8"))
+        if audit["decision"] == "revise":
+            revision_exit = _run_model_stage(
+                chain_prompts["step5_targeted_revision_prompt.md"],
+                output_dir / "generate_qualitative_revision.log",
+                "bounded_revision",
+            )
+            if revision_exit != 0:
+                return revision_exit
+            structure_errors = compare_structure_snapshot(target_output, baseline_path)
+            if structure_errors:
+                for error in structure_errors:
+                    print(f"[generate] structure FAIL: {error}")
+                return 1
+            reaudit_exit = _run_model_stage(
+                review_prompt,
+                output_dir / "generate_qualitative_reaudit.log",
+                "post_revision_review",
+            )
+            if reaudit_exit != 0:
+                return reaudit_exit
+            audit_errors = validate_sidecars(output_dir, ("qualitative_content_audit.json",))
+            if audit_errors:
+                for error in audit_errors:
+                    print(f"- {error}")
+                return 2
+            audit = json.loads(audit_path.read_text(encoding="utf-8"))
+        if audit["decision"] != "pass":
+            print("[generate] semantic content audit still requires revision")
+            return 1
 
     consistency = subprocess.run(consistency_argv, text=True, check=False)
     print(f"[generate] consistency audit exit code: {consistency.returncode}")
@@ -168,21 +266,9 @@ def main(argv: list[str] | None = None) -> int:
     if validation.returncode == 0 and args.profile == "production":
         provenance = write_provenance(output_dir, target_output)
         print(f"[generate] provenance: {provenance}")
-        audit_errors = validate_sidecars(output_dir, ("qualitative_content_audit.json",))
-        if audit_errors:
-            print("[generate] report is not production-final until independent content audit is valid:")
-            for error in audit_errors:
-                print(f"- {error}")
-            return 2
-        audit = __import__("json").loads(
-            (output_dir / "qualitative_content_audit.json").read_text(encoding="utf-8")
-        )
-        if audit["decision"] != "pass":
-            print("[generate] semantic content audit requires bounded revision")
-            return 1
         html_output = target_output.with_suffix(".html")
         render_argv = [
-            "python",
+            sys.executable,
             str(project_root / "scripts" / "report_to_html.py"),
             "--input",
             str(target_output),
@@ -195,7 +281,7 @@ def main(argv: list[str] | None = None) -> int:
         if render.returncode != 0:
             return render.returncode
         dom_argv = [
-            "python",
+            sys.executable,
             str(project_root / "scripts" / "validate_report_html.py"),
             "--html",
             str(html_output),
@@ -208,6 +294,18 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[generate] HTML DOM validation exit code: {dom.returncode}")
         if dom.returncode != 0:
             return dom.returncode
+        structure_baseline = output_dir / "pre_revision_structure.json"
+        if structure_baseline.is_file():
+            structure_errors = compare_structure_snapshot(target_output, structure_baseline)
+            if structure_errors:
+                for error in structure_errors:
+                    print(f"[generate] structure FAIL: {error}")
+                return 1
+        structure_path = write_structure_snapshot(
+            target_output,
+            output_dir / "report_structure.json",
+        )
+        print(f"[generate] structure manifest: {structure_path}")
     return validation.returncode
 
 

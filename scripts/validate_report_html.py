@@ -11,10 +11,12 @@ from pathlib import Path
 from bs4 import BeautifulSoup
 
 try:
-    from qualitative_quality import rating_from_markdown
+    from qualitative_artifacts import report_structure_signature
+    from qualitative_quality import rating_from_markdown, structured_param
     from report_contract import report_contract
 except ModuleNotFoundError:
-    from scripts.qualitative_quality import rating_from_markdown
+    from scripts.qualitative_artifacts import report_structure_signature
+    from scripts.qualitative_quality import rating_from_markdown, structured_param
     from scripts.report_contract import report_contract
 
 
@@ -29,6 +31,26 @@ def validate_html(html_text: str, markdown_text: str) -> tuple[list[str], dict]:
     expected_dimensions = contract["html"]["required_dimension_count"]
     if len(dimensions) != expected_dimensions:
         errors.append(f"expected {expected_dimensions} rendered dimensions, got {len(dimensions)}")
+
+    markdown_dimension_headings = [
+        re.sub(r"\s+", " ", title).strip()
+        for title in re.findall(
+            r"^##\s+((?:维度[一二三四五六]|D[1-6]\b).*?)\s*$",
+            markdown_text,
+            flags=re.MULTILINE | re.IGNORECASE,
+        )
+    ]
+    rendered_dimension_headings: list[str] = []
+    for heading in dimensions:
+        rendered = re.sub(r"\s+", " ", heading.get_text(" ", strip=True)).strip()
+        for badge in heading.select(".tag"):
+            badge_text = re.sub(r"\s+", " ", badge.get_text(" ", strip=True)).strip()
+            if badge_text and rendered.endswith(badge_text):
+                rendered = rendered[: -len(badge_text)].strip()
+        rendered_dimension_headings.append(rendered)
+    dimension_headings_match = markdown_dimension_headings == rendered_dimension_headings
+    if not dimension_headings_match:
+        errors.append("rendered dimension headings or order differ from source Markdown")
 
     visible_text = soup.get_text("\n", strip=True)
     raw_patterns = (
@@ -62,6 +84,12 @@ def validate_html(html_text: str, markdown_text: str) -> tuple[list[str], dict]:
     chart_nodes = soup.select(".chart-container")
     if len(chart_nodes) != expected_chart_count:
         errors.append(f"expected {expected_chart_count} chart containers, got {len(chart_nodes)}")
+    golden_chart_count_ok = True
+    if structured_param(markdown_text, "analysis_contract_version") == contract["analysis_quality"]["version"]:
+        golden_count = int(contract["html"]["golden_core_chart_count"])
+        golden_chart_count_ok = expected_chart_count == golden_count
+        if not golden_chart_count_ok:
+            errors.append(f"current qualitative contract requires exactly {golden_count} core charts")
     chart_ids = [node.get("data-chart-id", "") for node in chart_nodes]
     nonempty_ids = [value for value in chart_ids if value]
     if nonempty_ids and len(nonempty_ids) != len(set(nonempty_ids)):
@@ -76,14 +104,18 @@ def validate_html(html_text: str, markdown_text: str) -> tuple[list[str], dict]:
 
     rating = rating_from_markdown(markdown_text)
     components = sorted({node.get("data-component-role") for node in soup.select("[data-component-role]") if node.get("data-component-role")})
+    source_structure = report_structure_signature(markdown_text)
     manifest = {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "source_markdown": "",
         "rating": rating.display if rating else "legacy",
         "components": components,
         "charts": nonempty_ids or [node.get("data-chart-title", "") for node in chart_nodes],
+        "source_structure": source_structure,
         "validation": {
             "dimension_count": len(dimensions),
+            "dimension_headings_match": dimension_headings_match,
+            "golden_chart_count": golden_chart_count_ok,
             "raw_markdown_absent": raw_markdown_absent,
             "default_open_roles": open_roles,
         },

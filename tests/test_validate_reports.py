@@ -4,9 +4,14 @@ import re
 from validate_reports import (
     _has_profit_bridge_component_depth,
     _has_profit_bridge_expense_detail,
+    _stock_codes,
     validate_markdown,
     validate_output_dir,
 )
+
+
+def test_stock_code_identity_accepts_beijing_exchange():
+    assert _stock_codes("龙鑫智能（920117.BJ）") == {"920117.BJ"}
 
 
 VALID_QUALITATIVE = """
@@ -490,6 +495,95 @@ D6 的关键是判断子公司、投资收益或 SOTP 是否会改变商业质�
 | sotp_double_counting_check | 已并表子公司不重复加回，关联平台只作交叉校验 |
 | sotp_upgrade_trigger | 独立资产价值超过市值10%或利润贡献超过30%时升级 |
 """
+
+
+def _current_contract_qualitative() -> str:
+    text = VALID_QUALITATIVE.replace(
+        "### 收入质量依赖主业而非非核心扩张",
+        "### 图表二：收入质量依赖主业而非非核心扩张",
+        1,
+    ).replace(
+        "## 核心矛盾与反证条件",
+        "### 图表一：收入与回报保持稳定\n\n"
+        "chart_ready: true; chart_id: sipg-summary-trend; chart_target: executive_summary; chart_type: mixed; x_axis: 年份; bar_series: 收入; line_series: ROE; unit_map: 收入=亿元, ROE=%\n\n"
+        "读图结论：收入稳定且 ROE 维持在合理区间。\n\n"
+        "| 年份 | 收入 | ROE |\n|---|---:|---:|\n| 2024 | 140 | 10 |\n| 2025 | 142 | 10 |\n\n"
+        "投资含义是收入与回报没有失速，当前评级仍有基础。\n\n"
+        "## 核心矛盾与反证条件",
+        1,
+    ).replace(
+        "投资含义是公司有稳定主业现金流，但异常信号是资本开支可能削弱自由现金流。",
+        "投资含义是公司有稳定主业现金流，但异常信号是资本开支可能削弱自由现金流。\n\n"
+        "经营现金流现金桥显示，应收与存货增加属于经营资产占用，应付与合同负债增加属于客户或供应商提供的经营融资；"
+        "四项变化共同解释了经营现金流，合同负债不能与资产相加称为资本占用。",
+        1,
+    )
+    text = text.replace(
+        "这六步说明区位与网络保护现金流下限，并不自然抬高费率上限。投资含义是评级边界取决于份额、回报与自由现金流能否同时维持。",
+        "这六步说明区位与网络保护现金流下限，并不自然抬高费率上限。投资含义是评级边界取决于份额、回报与自由现金流能否同时维持。\n\n"
+        "第一种网络效率假说认为稀缺区位和集疏运网络形成可持续成本优势；第二种周期景气假说认为回报主要来自外贸景气。"
+        "现有证据保留第一种解释，但不能排除第二种；同业现金转化接近构成反例和边界，因此综合评级维持 B+。",
+        1,
+    )
+    text = text.replace(
+        "结论：D6 的投资含义是控股结构暂不推翻主业判断，异常触发条件是投资收益、子公司利润占比或关联平台价值突然放大。",
+        "结论：D6 的投资含义是控股结构暂不推翻主业判断，异常触发条件是投资收益、子公司利润占比或关联平台价值突然放大。\n\n"
+        "经济可分拆性只达到 partial：已逐项检查独立客户、产品与技术、管理及共享资源、现金流、净债务、资本开支、内部交易与资源分摊，"
+        "现有证据不支持将子公司作为经济独立单元完整拆分。",
+        1,
+    )
+    return text.replace(
+        "| rating_version | 2.0 |",
+        "| rating_version | 2.0 |\n"
+        "| analysis_contract_version | 2.1 |\n"
+        "| roe_history_years | 5 |\n"
+        "| roe_available_years_avg | 10% |\n"
+        "| sotp_economic_separability | partial |\n"
+        "| collection_mode | 先款后货 |",
+        1,
+    )
+
+
+def test_current_qualitative_contract_passes_enhanced_reasoning_checks():
+    result = validate_markdown(
+        _current_contract_qualitative(),
+        "qualitative",
+        quality_contract="current",
+    )
+    assert result.ok, result.messages
+
+
+def test_current_contract_rejects_misclassified_working_capital_and_roe_history():
+    text = _current_contract_qualitative().replace(
+        "经营现金流现金桥显示，应收与存货增加属于经营资产占用，应付与合同负债增加属于客户或供应商提供的经营融资；四项变化共同解释了经营现金流，合同负债不能与资产相加称为资本占用。",
+        "经营现金流改善只来自回款，应收、存货、应付和合同负债都计入资本占用。",
+        1,
+    ).replace(
+        "| roe_history_years | 5 |",
+        "| roe_history_years | 4 |",
+        1,
+    )
+    result = validate_markdown(text, "qualitative", quality_contract="current")
+    assert "qualitative_working_capital_cash_bridge" in result.missing
+    assert "qualitative_roe_history_coverage" in result.missing
+
+
+def test_current_contract_requires_order_cycle_transmission_when_classified():
+    text = _current_contract_qualitative().replace(
+        "| cyclicality | 强周期 |",
+        "| cyclicality | 订单周期敏感 |",
+        1,
+    )
+    result = validate_markdown(text, "qualitative", quality_contract="current")
+    assert "qualitative_order_cycle_transmission" in result.missing
+
+    text = text.replace(
+        "外部变量的关键，是它如何沿着需求周期 → 价格/成本 → ROE 修复空间 → 反证阈值传导到收入、利润和评级阈值。",
+        "当前阶段处于结构修复，客户资本开支 → 设备订单 → 制造交付 → 验收 → 收入 → 回款/现金构成完整订单周期传导。\n\n"
+        "外部变量的关键，是它如何沿着需求周期 → 价格/成本 → ROE 修复空间 → 反证阈值传导到收入、利润和评级阈值。",
+        1,
+    )
+    assert validate_markdown(text, "qualitative", quality_contract="current").ok
 
 
 

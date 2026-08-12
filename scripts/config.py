@@ -62,7 +62,7 @@ def validate_stock_code(code: str) -> str:
     """Validate and normalize a stock code to Tushare format.
 
     Supports:
-        - A-share: 600887.SH, 000858.SZ, 300750.SZ
+        - A-share: 600887.SH, 000858.SZ, 300750.SZ, 920117.BJ
         - HK: 00700.HK, 09988.HK (1-5 digits, zero-padded to 5)
         - Plain codes: 600887 -> 600887.SH, 000858 -> 000858.SZ
         - Plain 1-5 digit codes -> HK (e.g., 696 -> 00696.HK)
@@ -79,7 +79,7 @@ def validate_stock_code(code: str) -> str:
     code = code.strip().upper()
 
     # Already in Tushare format
-    if re.match(r"^\d{6}\.(SH|SZ)$", code):
+    if re.match(r"^\d{6}\.(SH|SZ|BJ)$", code):
         return code
     m = re.match(r"^(\d{1,5})\.HK$", code)
     if m:
@@ -91,6 +91,8 @@ def validate_stock_code(code: str) -> str:
             return f"{code}.SH"
         elif code.startswith(("0", "3")):
             return f"{code}.SZ"
+        elif code.startswith(("4", "8", "92")):
+            return f"{code}.BJ"
         else:
             raise ValueError(
                 f"Unrecognized A-share code prefix: {code}. "
@@ -111,7 +113,7 @@ def validate_stock_code(code: str) -> str:
 
     raise ValueError(
         f"Unrecognized stock code format: '{code}'. "
-        "Expected: 600887.SH, 000858.SZ, 00700.HK, AAPL.US, or plain digits."
+        "Expected: 600887.SH, 000858.SZ, 920117.BJ, 00700.HK, AAPL.US, or plain digits."
     )
 
 

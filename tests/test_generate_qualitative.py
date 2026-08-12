@@ -1,5 +1,6 @@
 from pathlib import Path
 from types import SimpleNamespace
+import sys
 
 import generate_qualitative
 from generate_qualitative import main
@@ -65,7 +66,7 @@ def test_generate_qualitative_validation_uses_argv_for_paths_with_spaces(tmp_pat
 
     assert exit_code == 0
     assert calls[1] == [
-        "python",
+        sys.executable,
         str(Path(generate_qualitative.__file__).resolve().parent / "report_consistency.py"),
         "--report",
         str(target_output),
@@ -73,11 +74,13 @@ def test_generate_qualitative_validation_uses_argv_for_paths_with_spaces(tmp_pat
         str(output_dir / "consistency_report.md"),
     ]
     assert calls[2] == [
-        "python",
+        sys.executable,
         str(Path(generate_qualitative.__file__).resolve().parent / "validate_reports.py"),
         str(target_output),
         "--type",
         "qualitative",
+        "--quality-contract",
+        "current",
     ]
     displayed = capsys.readouterr().out
     assert f"'{target_output}'" in displayed
@@ -120,3 +123,72 @@ def test_generate_qualitative_production_requires_audited_evidence_inputs(tmp_pa
 
     assert main(["--output-dir", str(output_dir), "--profile", "production"]) == 2
     assert "production preflight failed" in capsys.readouterr().out
+
+
+def test_production_nested_chain_runs_evidence_review_revision_and_reaudit(
+    tmp_path, monkeypatch
+):
+    output_dir = tmp_path / "output" / "300628_yilian"
+    output_dir.mkdir(parents=True)
+    (output_dir / "data_pack_market.md").write_text(
+        "## 1. 基本信息\n| 项目 | 内容 |\n|---|---|\n| 股票代码 | 300628.SZ |\n",
+        encoding="utf-8",
+    )
+    (output_dir / "annual_report.pdf").write_bytes(b"%PDF-1.7\n")
+    (output_dir / "pdf_sections.json").write_text("{}", encoding="utf-8")
+    target_output = output_dir / "300628_SZ_qualitative_report.md"
+    model_stages: list[str] = []
+    review_count = 0
+
+    monkeypatch.setattr(
+        generate_qualitative,
+        "audit_inputs",
+        lambda _: {"status": "pass", "issues": []},
+    )
+    monkeypatch.setattr(generate_qualitative, "validate_sidecars", lambda *_: [])
+    monkeypatch.setattr(
+        generate_qualitative,
+        "validate_current_argument_quality",
+        lambda *_: [],
+    )
+
+    def fake_run(command: list[str], **kwargs: object) -> SimpleNamespace:
+        nonlocal review_count
+        if command[0] == "claude":
+            prompt_name = Path(kwargs["stdin"].name).name  # type: ignore[index,union-attr]
+            model_stages.append(prompt_name)
+            if prompt_name == "step5_evidence_argument_prompt.md":
+                (output_dir / "qualitative_evidence.json").write_text("{}", encoding="utf-8")
+                (output_dir / "qualitative_argument_map.json").write_text("{}", encoding="utf-8")
+            elif prompt_name == "step5_qualitative_prompt.md":
+                target_output.write_text(
+                    "## 维度一\nchart_ready: true; chart_id: one; chart_target: dimension_1\n",
+                    encoding="utf-8",
+                )
+            elif prompt_name == "step5_content_review_prompt.md":
+                review_count += 1
+                decision = "revise" if review_count == 1 else "pass"
+                (output_dir / "qualitative_content_audit.json").write_text(
+                    '{"decision": "' + decision + '"}',
+                    encoding="utf-8",
+                )
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(generate_qualitative.subprocess, "run", fake_run)
+
+    assert main([
+        "--output-dir",
+        str(output_dir),
+        "--profile",
+        "production",
+        "--run-nested-claude",
+    ]) == 0
+    assert model_stages == [
+        "step5_evidence_argument_prompt.md",
+        "step5_qualitative_prompt.md",
+        "step5_content_review_prompt.md",
+        "step5_targeted_revision_prompt.md",
+        "step5_content_review_prompt.md",
+    ]
+    assert (output_dir / "pre_revision_structure.json").is_file()
+    assert (output_dir / "report_structure.json").is_file()

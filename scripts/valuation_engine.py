@@ -84,7 +84,7 @@ class ValuationEngine:
         # Detect market
         if ts_code.endswith(".HK"):
             self.market = "HK"
-        elif ts_code.endswith(".US") or (not ts_code.endswith(".SH") and not ts_code.endswith(".SZ")):
+        elif ts_code.endswith(".US") or not ts_code.endswith((".SH", ".SZ", ".BJ")):
             self.market = "US"
         else:
             self.market = "A"

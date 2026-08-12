@@ -36,6 +36,8 @@ def test_contract_has_versioned_strict_fields():
         "moat-interrogation",
         "moat-falsification",
     }
+    assert contract["analysis_quality"]["version"] == "2.1"
+    assert "sotp_economic_separability" in contract["analysis_quality"]["current_machine_fields"]
 
 
 def test_prompt_contract_separates_overall_quality_from_moat_and_names_sotp_modes():

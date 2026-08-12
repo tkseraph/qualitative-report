@@ -309,7 +309,7 @@ Financial endpoints are cached for 7 days; weekly prices and bond yields for
     parser.add_argument(
         "--code",
         required=True,
-        help="Stock code (e.g., 600887.SH, 000858.SZ, 00700.HK, or plain digits)",
+        help="Stock code (e.g., 600887.SH, 000858.SZ, 920117.BJ, 00700.HK, or plain digits)",
     )
     parser.add_argument(
         "--token",

@@ -46,6 +46,10 @@ def _engine(store=None, as_of="20260501"):
     return ValuationEngine("600000.SH", "/tmp", FakeClient(store, as_of))
 
 
+def test_beijing_exchange_uses_a_share_market_parameters():
+    assert ValuationEngine("920117.BJ", "/tmp", FakeClient()).market == "A"
+
+
 def test_cagr_rejects_gapped_series():
     assert ValuationEngine._cagr([100, None, 25]) is None
     assert ValuationEngine._cagr([100, 50, 25]) == pytest.approx(1.0)
