@@ -35,6 +35,9 @@ def test_build_site_writes_categorized_catalog_and_private_robots(tmp_path):
     assert 'class="public-security-record"' in html
     assert 'src="/assets/beian.png"' in html
     assert (output / "assets" / "beian.png").is_file()
+    assert "版权所有：网站主办者" in html
+    assert "©" not in html
+    assert html.index("京公网安备11010602203105号") < html.index("京ICP备202605015号-1")
     assert "研究商业本质" in html
     assert "寻找长期价值" in html
     assert "让价值从证据中" not in html
@@ -93,6 +96,12 @@ def test_build_site_refreshes_public_report_identity_and_metadata(tmp_path):
     assert 'class="public-security-record"' in detail
     assert 'src="/assets/beian.png"' in detail
     assert "个人非经营性研究记录" in detail
+    assert "版权所有：网站主办者" in detail
+    assert "©" not in detail
+    assert detail.index("京公网安备11010602203105号") < detail.index("京ICP备202605015号-1")
+    assert detail.index('<div class="publication-return">') < detail.index(
+        '<section class="publication-compliance"'
+    )
 
 
 def test_build_site_lists_report_title_and_copies_detail_page(tmp_path):

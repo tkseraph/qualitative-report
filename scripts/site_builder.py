@@ -126,7 +126,7 @@ def _public_url(public_path: str) -> str:
     return path
 
 
-PUBLIC_COMPLIANCE_CSS = """.publication-shell-brand>span{display:flex;flex-direction:column;gap:1px}.publication-shell-brand small{color:rgba(244,241,233,.56);font-size:9px;font-weight:400;letter-spacing:.04em}.publication-compliance{padding:28px 24px;text-align:center;background:#171916;color:#f4f1e9;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif}.publication-compliance strong,.publication-compliance>span{display:block}.publication-compliance strong{font-family:'Songti SC','STSong',serif;font-size:16px}.publication-compliance>span,.publication-compliance p,.publication-compliance a{margin:6px 0 0;color:rgba(244,241,233,.64);font-size:11px;line-height:1.7}.publication-compliance a{display:inline-block}.publication-compliance .public-security-record{display:inline-flex;align-items:center;gap:6px}.publication-compliance .public-security-record img{width:18px;height:20px;object-fit:contain;flex:0 0 auto}.publication-compliance+.publication-return{border-top:0}"""
+PUBLIC_COMPLIANCE_CSS = """.publication-shell-brand>span{display:flex;flex-direction:column;gap:1px}.publication-shell-brand small{color:rgba(244,241,233,.56);font-size:9px;font-weight:400;letter-spacing:.04em}.publication-compliance{padding:32px 24px;text-align:center;background:#171916;color:#f4f1e9;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif}.publication-compliance strong,.publication-compliance>span{display:block}.publication-compliance strong{font-family:'Songti SC','STSong',serif;font-size:16px}.publication-compliance>span,.publication-compliance p{margin:6px 0 0;color:rgba(244,241,233,.64);font-size:11px;line-height:1.7}.publication-compliance .publication-copyright{margin-top:8px;color:rgba(244,241,233,.68)}.publication-records{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:10px 20px;margin-top:10px}.publication-records a,.publication-records span{display:inline-flex;align-items:center;margin:0;color:rgba(244,241,233,.64);font-size:11px;line-height:1.7}.publication-compliance .public-security-record{gap:6px}.publication-compliance .public-security-record img{width:18px;height:20px;object-fit:contain;flex:0 0 auto}@media(max-width:640px){.publication-records{gap:8px 16px}}"""
 
 
 def _report_absolute_url(config: dict[str, str], public_path: str) -> str:
@@ -205,11 +205,6 @@ def _prepare_public_report(
     )
 
     legal_links = ""
-    if config.get("icp_number"):
-        legal_links += (
-            '<a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">'
-            f'{html_lib.escape(config["icp_number"])}</a>'
-        )
     if config.get("public_security_number"):
         number = html_lib.escape(config["public_security_number"])
         public_security_url = config.get("public_security_url", "")
@@ -226,16 +221,28 @@ def _prepare_public_report(
             )
         else:
             legal_links += f"<span>{number}</span>"
+    if config.get("icp_number"):
+        legal_links += (
+            '<a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">'
+            f'{html_lib.escape(config["icp_number"])}</a>'
+        )
     compliance = (
         '<section class="publication-compliance" aria-label="网站备案与内容说明">'
         f'<strong>{html_lib.escape(registered_name)}</strong>'
         f'<span>{html_lib.escape(site_name)}</span>'
         '<p>个人非经营性研究记录，不提供证券投资咨询或交易服务；内容不构成任何投资建议。</p>'
-        f"{legal_links}</section>"
+        '<p class="publication-copyright">版权所有：网站主办者</p>'
+        f'<div class="publication-records">{legal_links}</div></section>'
     )
-    bottom_return = '<div class="publication-return">'
-    if bottom_return in cleaned:
-        cleaned = cleaned.replace(bottom_return, compliance + "\n" + bottom_return, 1)
+    bottom_return_pattern = r'(<div\s+class=["\']publication-return["\'][^>]*>.*?</div>)'
+    if re.search(bottom_return_pattern, cleaned, re.IGNORECASE | re.DOTALL):
+        cleaned = re.sub(
+            bottom_return_pattern,
+            lambda match: match.group(1) + "\n" + compliance,
+            cleaned,
+            count=1,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
     elif re.search(r"</body>", cleaned, re.IGNORECASE):
         cleaned = re.sub(r"</body>", compliance + "\n</body>", cleaned, count=1, flags=re.IGNORECASE)
     else:

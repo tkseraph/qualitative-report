@@ -128,15 +128,18 @@
 
   <footer class="site-footer">
     <div class="page-shell footer-inner">
-      <div>
+      <div class="footer-brand">
         <strong>{{ config.site_name }}</strong>
         <p>{{ config.site_description }}</p>
         <span class="registered-site-name">备案网站名称：{{ config.registered_site_name }}</span>
       </div>
       <div class="footer-legal">
         <p>个人非经营性研究记录，不提供证券投资咨询或交易服务；内容不构成任何投资建议。</p>
-        {% if config.icp_number %}<a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">{{ config.icp_number }}</a>{% endif %}
-        {% if config.public_security_number and config.public_security_url %}<a class="public-security-record" href="{{ config.public_security_url }}" target="_blank" rel="noopener noreferrer">{% if config.public_security_icon %}<img src="{{ config.public_security_icon }}" alt="" width="18" height="20">{% endif %}<span>{{ config.public_security_number }}</span></a>{% elif config.public_security_number %}<span>{{ config.public_security_number }}</span>{% endif %}
+        <p class="footer-copyright">版权所有：网站主办者</p>
+        <div class="footer-records">
+          {% if config.public_security_number and config.public_security_url %}<a class="public-security-record" href="{{ config.public_security_url }}" target="_blank" rel="noopener noreferrer">{% if config.public_security_icon %}<img src="{{ config.public_security_icon }}" alt="" width="18" height="20">{% endif %}<span>{{ config.public_security_number }}</span></a>{% elif config.public_security_number %}<span>{{ config.public_security_number }}</span>{% endif %}
+          {% if config.icp_number %}<a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">{{ config.icp_number }}</a>{% endif %}
+        </div>
       </div>
     </div>
   </footer>
