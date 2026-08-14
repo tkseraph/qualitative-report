@@ -80,6 +80,7 @@
         ]
       },
       "html": {
+        "mobile_render_contract": "2.0",
         "default_open_table_roles": ["moat-interrogation", "moat-falsification"],
         "required_dimension_count": 6,
         "golden_core_chart_count": 6

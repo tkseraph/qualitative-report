@@ -95,6 +95,37 @@ def validate_html(html_text: str, markdown_text: str) -> tuple[list[str], dict]:
     if nonempty_ids and len(nonempty_ids) != len(set(nonempty_ids)):
         errors.append("chart_id values must be unique")
 
+    viewport = soup.select_one('meta[name="viewport"]')
+    responsive_viewport_ok = bool(
+        viewport and "width=device-width" in str(viewport.get("content", ""))
+    )
+    if not responsive_viewport_ok:
+        errors.append("rendered report must declare a device-width responsive viewport")
+
+    expected_mobile_render_contract = str(contract["html"]["mobile_render_contract"])
+    mobile_contract_meta = soup.select_one('meta[name="qualitative-mobile-contract"]')
+    mobile_render_contract_ok = bool(
+        mobile_contract_meta
+        and mobile_contract_meta.get("content") == expected_mobile_render_contract
+    )
+    if not mobile_render_contract_ok:
+        errors.append(
+            "rendered report mobile contract must be " + expected_mobile_render_contract
+        )
+
+    chart_table_regions = soup.select('.chart-table-region[data-mobile-table="scroll"]')
+    mobile_chart_contract_ok = True
+    if chart_nodes:
+        mobile_chart_contract_ok = (
+            len(chart_table_regions) == len(chart_nodes)
+            and all(node.get("data-mobile-density") == "reduced" for node in chart_nodes)
+            and all(node.get("data-mobile-value-labels") == "collision-aware" for node in chart_nodes)
+        )
+        if not mobile_chart_contract_ok:
+            errors.append(
+                "each chart must include reduced-density mobile rendering, collision-aware value labels, and a dedicated scrollable data-table region"
+            )
+
     chart_metadata_match = True
     metadata_lines = re.findall(
         r"^chart_ready:\s*true\s*;(?P<meta>.*)$",
@@ -182,6 +213,9 @@ def validate_html(html_text: str, markdown_text: str) -> tuple[list[str], dict]:
             "dimension_headings_match": dimension_headings_match,
             "golden_chart_count": golden_chart_count_ok,
             "chart_metadata_match": chart_metadata_match,
+            "responsive_viewport": responsive_viewport_ok,
+            "mobile_render_contract": mobile_render_contract_ok,
+            "mobile_chart_contract": mobile_chart_contract_ok,
             "raw_markdown_absent": raw_markdown_absent,
             "default_open_roles": open_roles,
         },

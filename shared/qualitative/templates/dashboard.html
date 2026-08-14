@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="qualitative-mobile-contract" content="{{ mobile_render_contract }}">
 <title>{{ company_name }} ({{ stock_code }}) · 商业质量评估</title>
 <meta name="description" content="{{ company_name }}（{{ stock_code }}）商业模式与护城河定性分析 — 6维度深度评估">
 {% if canonical_url %}<link rel="canonical" href="{{ canonical_url }}">{% else %}<meta name="robots" content="noindex,nofollow">{% endif %}
@@ -135,7 +136,9 @@
     <div class="trend-chart-title{% if chart.title_class %} {{ chart.title_class }}{% endif %}">{{ chart.title }}</div>
     {% if chart.readout %}<div class="trend-chart-readout">读图结论：{{ chart.readout }}</div>{% endif %}
     {{ chart.chart_html }}
-    {{ chart.table_html }}
+    <div class="chart-table-region" data-mobile-table="scroll" role="region" aria-label="图表数据表" tabindex="0">
+      {{ chart.table_html }}
+    </div>
   </div>
   {% endfor %}
 </div>
@@ -161,7 +164,9 @@
       <div class="trend-chart-title{% if chart.title_class %} {{ chart.title_class }}{% endif %}">{{ chart.title }}</div>
       {% if chart.readout %}<div class="trend-chart-readout">读图结论：{{ chart.readout }}</div>{% endif %}
       {{ chart.chart_html }}
-      {{ chart.table_html }}
+      <div class="chart-table-region" data-mobile-table="scroll" role="region" aria-label="图表数据表" tabindex="0">
+        {{ chart.table_html }}
+      </div>
     </div>
     {% endfor %}
   </div>
@@ -182,7 +187,9 @@
         <div class="trend-chart-title{% if chart.title_class %} {{ chart.title_class }}{% endif %}">{{ chart.title }}</div>
         {% if chart.readout %}<div class="trend-chart-readout">读图结论：{{ chart.readout }}</div>{% endif %}
         {{ chart.chart_html }}
-        {{ chart.table_html }}
+        <div class="chart-table-region" data-mobile-table="scroll" role="region" aria-label="图表数据表" tabindex="0">
+          {{ chart.table_html }}
+        </div>
       </div>
       {% endfor %}
     </div>
@@ -263,6 +270,8 @@
 (function drawTrendCharts(){
   var colors = ['#2563a0', '#1a7a5a', '#a06c1a', '#c0392b', '#6c5ce7'];
   var font = '11px -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif';
+  var compactFont = '10px -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif';
+  var mobileMedia = window.matchMedia('(max-width: 700px)');
 
   function numericValues(datasets){
     var values = [];
@@ -284,17 +293,35 @@
     return unit ? rounded + unit : rounded;
   }
 
+  function formatCompactValue(value){
+    if (typeof value !== 'number') return '';
+    var absolute = Math.abs(value);
+    if (absolute >= 100) return value.toFixed(0);
+    if (absolute >= 1) return value.toFixed(1).replace(/\.0$/, '');
+    if (absolute >= 0.1) return value.toFixed(2).replace(/0$/, '').replace(/\.0$/, '');
+    return value.toFixed(3).replace(/0+$/, '').replace(/\.$/, '');
+  }
+
   function prepareCanvas(canvas){
     var ctx = canvas.getContext('2d');
     var width = canvas.clientWidth || 640;
     var height = canvas.clientHeight || 220;
+    var compact = width <= 620 || mobileMedia.matches;
     var dpr = window.devicePixelRatio || 1;
     canvas.width = width * dpr;
     canvas.height = height * dpr;
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, width, height);
-    ctx.font = font;
-    return {ctx: ctx, width: width, height: height, pad: {left: 58, right: 58, top: 28, bottom: 38}};
+    ctx.font = compact ? compactFont : font;
+    return {
+      ctx: ctx,
+      width: width,
+      height: height,
+      compact: compact,
+      pad: compact
+        ? {left: 34, right: 34, top: 62, bottom: 42}
+        : {left: 58, right: 58, top: 28, bottom: 38}
+    };
   }
 
   function drawAxes(ctx, width, height, pad){
@@ -307,28 +334,67 @@
     ctx.stroke();
   }
 
-  function drawLegend(ctx, datasets, pad, width){
+  function compactSeriesLabel(ds){
+    var label = String(ds.label || '')
+      .replace(/股份有限公司/g, '')
+      .replace(/股份/g, '');
+    if (label.length > 7) label = label.slice(0, 6) + '…';
+    return label + (ds.unit ? ' · ' + ds.unit : '');
+  }
+
+  function drawLegend(ctx, datasets, pad, width, compact){
     var x = pad.left;
     var y = 8;
     var maxX = width - pad.right;
     datasets.slice(0, 5).forEach(function(ds, i){
-      var label = ds.label + (ds.unit ? ' · ' + ds.unit : '');
-      var itemWidth = 22 + ctx.measureText(label).width;
+      var label = compact ? compactSeriesLabel(ds) : ds.label + (ds.unit ? ' · ' + ds.unit : '');
+      var itemWidth = 18 + ctx.measureText(label).width;
       if (x !== pad.left && x + itemWidth > maxX) {
         x = pad.left;
-        y += 16;
+        y += compact ? 15 : 16;
       }
       ctx.fillStyle = colors[i % colors.length];
-      ctx.fillRect(x, y, 9, 9);
+      ctx.fillRect(x, y, compact ? 8 : 9, compact ? 8 : 9);
       ctx.fillStyle = '#8a8a84';
-      ctx.fillText(label, x + 13, y + 8);
-      x += itemWidth + 14;
+      ctx.fillText(label, x + 12, y + 8);
+      x += itemWidth + (compact ? 8 : 14);
     });
   }
 
-  function drawLabels(ctx, labels, x, height){
+  function compactCategoryLabel(label){
+    var text = String(label)
+      .replace(/股份有限公司/g, '')
+      .replace(/有限责任公司/g, '')
+      .replace(/股份/g, '');
+    return text.length > 5 ? text.slice(0, 5) + '…' : text;
+  }
+
+  function compactLabelIndexes(labels, width, pad){
+    var labelWidths = labels.map(function(label){
+      return Math.max(28, Math.min(70, compactCategoryLabel(label).length * 10 + 8));
+    });
+    var widest = Math.max.apply(null, labelWidths.concat([28]));
+    var maxTicks = Math.max(3, Math.floor((width - pad.left - pad.right) / widest));
+    var stride = Math.max(1, Math.ceil(labels.length / maxTicks));
+    return labels.map(function(_label, index){
+      return index === 0 || index === labels.length - 1 || index % stride === 0;
+    });
+  }
+
+  function drawLabels(ctx, labels, x, height, compact, width, pad){
     ctx.fillStyle = '#8a8a84';
-    labels.forEach(function(label, i){ ctx.fillText(String(label).slice(0, 8), x(i) - 14, height - 12); });
+    var visible = compact ? compactLabelIndexes(labels, width, pad) : labels.map(function(){ return true; });
+    labels.forEach(function(label, i){
+      if (!visible[i]) return;
+      var text = compact ? compactCategoryLabel(label) : String(label).slice(0, 8);
+      if (compact) {
+        ctx.textAlign = 'center';
+        ctx.fillText(text, x(i), height - 12);
+        ctx.textAlign = 'left';
+      } else {
+        ctx.fillText(text, x(i) - 14, height - 12);
+      }
+    });
   }
 
   function drawLineDataset(ctx, ds, dsIndex, labels, x, y){
@@ -357,22 +423,54 @@
     return !occupiedLabelRects.some(function(existing){ return rectsOverlap(rect, existing); });
   }
 
-  function drawValueLabels(ctx, datasets, x, y, role, occupiedLabelRects){
+  function valueLabelPriority(ds, value, index, role){
+    var numericValues = ds.values.filter(function(item){ return typeof item === 'number'; });
+    var priority = index === ds.values.length - 1 ? 1000 : 0;
+    if (index === 0) priority += 500;
+    if (numericValues.length && (value === Math.min.apply(null, numericValues) || value === Math.max.apply(null, numericValues))) priority += 100;
+    if (role === 'line') priority += 20;
+    return priority;
+  }
+
+  function drawValueLabels(ctx, datasets, x, y, role, occupiedLabelRects, compact, colorOffset, pad, width, height){
     occupiedLabelRects = occupiedLabelRects || [];
+    var candidates = [];
     datasets.forEach(function(ds, dsIndex){
-      ctx.fillStyle = role === 'line' ? colors[(dsIndex + 3) % colors.length] : colors[dsIndex % colors.length];
       ds.values.forEach(function(v, i){
         if (typeof v !== 'number') return;
-        var label = formatValue(v, ds.unit);
+        var label = compact ? formatCompactValue(v) : formatValue(v, ds.unit);
         var labelWidth = ctx.measureText(label).width;
-        var px = x(i) - labelWidth / 2;
-        var py = role === 'line' ? y(v) - 8 : y(v) - 4;
-        py = Math.max(12, py);
-        var rect = {x: px - 3, y: py - 10, w: labelWidth + 6, h: 12};
-        if (!shouldDrawValueLabel(rect, occupiedLabelRects)) return;
-        ctx.fillText(label, px, py);
-        occupiedLabelRects.push(rect);
+        candidates.push({
+          baseX: x(i, dsIndex),
+          baseY: y(v),
+          color: colors[(dsIndex + colorOffset) % colors.length],
+          label: label,
+          labelWidth: labelWidth,
+          order: candidates.length,
+          priority: valueLabelPriority(ds, v, i, role)
+        });
       });
+    });
+    if (compact) candidates.sort(function(a, b){ return b.priority - a.priority || a.order - b.order; });
+    var offsets = role === 'line'
+      ? [[0, -8], [0, 15], [-8, -8], [8, 15]]
+      : [[0, -4], [0, -16], [0, 15], [-8, -4], [8, -4]];
+    candidates.forEach(function(candidate){
+      var placed = false;
+      offsets.some(function(offset){
+        var px = candidate.baseX - candidate.labelWidth / 2 + offset[0];
+        var py = candidate.baseY + offset[1];
+        px = Math.max(4, Math.min(width - candidate.labelWidth - 4, px));
+        py = Math.max(pad.top + 10, Math.min(height - pad.bottom - 4, py));
+        var rect = {x: px - 3, y: py - 10, w: candidate.labelWidth + 6, h: 12};
+        if (!shouldDrawValueLabel(rect, occupiedLabelRects)) return false;
+        ctx.fillStyle = candidate.color;
+        ctx.fillText(candidate.label, px, py);
+        occupiedLabelRects.push(rect);
+        placed = true;
+        return true;
+      });
+      return placed;
     });
   }
 
@@ -384,7 +482,8 @@
     return '单位 · ' + sample.unit;
   }
 
-  function drawAxisMaxLabels(ctx, width, pad, barRange, lineRange, barSample, lineSample){
+  function drawAxisMaxLabels(ctx, width, pad, barRange, lineRange, barSample, lineSample, compact){
+    if (compact) return;
     ctx.fillStyle = '#8a8a84';
     ctx.textAlign = 'left';
     var barLabel = axisUnitLabel(barSample);
@@ -397,16 +496,18 @@
 
   function drawLineChart(canvas, payload){
     var frame = prepareCanvas(canvas);
-    var ctx = frame.ctx, width = frame.width, height = frame.height, pad = frame.pad;
+    var ctx = frame.ctx, width = frame.width, height = frame.height, pad = frame.pad, compact = frame.compact;
     var values = numericValues(payload.datasets);
     if (!payload.labels.length || !values.length) return;
     var range = extent(values);
     var x = function(i){ return pad.left + (width - pad.left - pad.right) * i / Math.max(1, payload.labels.length - 1); };
     var y = function(v){ return pad.top + (height - pad.top - pad.bottom) * (1 - (v - range.min) / (range.max - range.min)); };
     drawAxes(ctx, width, height, pad);
-    drawLabels(ctx, payload.labels, x, height);
-    payload.datasets.slice(0, 5).forEach(function(ds, dsIndex){ drawLineDataset(ctx, ds, dsIndex, payload.labels, x, y); });
-    drawLegend(ctx, payload.datasets, pad, width);
+    drawLabels(ctx, payload.labels, x, height, compact, width, pad);
+    var lineDatasets = payload.datasets.slice(0, 5);
+    lineDatasets.forEach(function(ds, dsIndex){ drawLineDataset(ctx, ds, dsIndex, payload.labels, x, y); });
+    if (compact) drawValueLabels(ctx, lineDatasets, x, y, 'line', [], compact, 0, pad, width, height);
+    drawLegend(ctx, payload.datasets, pad, width, compact);
   }
 
   function drawBars(ctx, barSets, xCenter, y, zeroY, barWidth){
@@ -423,7 +524,7 @@
 
   function drawBarChart(canvas, payload){
     var frame = prepareCanvas(canvas);
-    var ctx = frame.ctx, width = frame.width, height = frame.height, pad = frame.pad;
+    var ctx = frame.ctx, width = frame.width, height = frame.height, pad = frame.pad, compact = frame.compact;
     if (!payload.labels.length) return;
     var barSets = payload.datasets.filter(function(ds){ return ds.role === 'bar'; }).slice(0, 5);
     if (!barSets.length) barSets = payload.datasets.slice(0, 5);
@@ -435,15 +536,22 @@
     var xCenter = function(i){ return pad.left + groupWidth * i + groupWidth / 2; };
     var y = function(v){ return pad.top + (height - pad.top - pad.bottom) * (1 - (v - floor) / (range.max - floor)); };
     drawAxes(ctx, width, height, pad);
-    drawLabels(ctx, payload.labels, xCenter, height);
+    drawLabels(ctx, payload.labels, xCenter, height, compact, width, pad);
     drawBars(ctx, barSets, xCenter, y, y(0), barWidth);
-    drawLegend(ctx, barSets, pad, width);
-    if (barSets[0]) { ctx.fillStyle = '#8a8a84'; ctx.fillText(formatValue(range.max, barSets[0].unit), 8, pad.top + 8); }
+    if (compact) {
+      var barLabelX = function(i, dsIndex){
+        var offset = (dsIndex - (barSets.length - 1) / 2) * barWidth;
+        return xCenter(i) + offset;
+      };
+      drawValueLabels(ctx, barSets, barLabelX, y, 'bar', [], compact, 0, pad, width, height);
+    }
+    drawLegend(ctx, barSets, pad, width, compact);
+    if (barSets[0] && !compact) { ctx.fillStyle = '#8a8a84'; ctx.fillText(formatValue(range.max, barSets[0].unit), 8, pad.top + 8); }
   }
 
   function drawBarLineChart(canvas, payload){
     var frame = prepareCanvas(canvas);
-    var ctx = frame.ctx, width = frame.width, height = frame.height, pad = frame.pad;
+    var ctx = frame.ctx, width = frame.width, height = frame.height, pad = frame.pad, compact = frame.compact;
     if (!payload.labels.length) return;
     var barSets = payload.datasets.filter(function(ds){ return ds.role === 'bar'; }).slice(0, 4);
     var lineSets = payload.datasets.filter(function(ds){ return ds.role !== 'bar'; }).slice(0, 3);
@@ -459,22 +567,34 @@
     var lineY = function(v){ return pad.top + (height - pad.top - pad.bottom) * (1 - (v - lineRange.min) / (lineRange.max - lineRange.min)); };
     var lineX = function(i){ return xCenter(i); };
     drawAxes(ctx, width, height, pad);
-    drawLabels(ctx, payload.labels, lineX, height);
+    drawLabels(ctx, payload.labels, lineX, height, compact, width, pad);
     drawBars(ctx, barSets, xCenter, barY, barY(0), barWidth);
     lineSets.forEach(function(ds, dsIndex){ drawLineDataset(ctx, ds, dsIndex + barSets.length, payload.labels, lineX, lineY); });
     var occupiedLabelRects = [];
-    drawValueLabels(ctx, barSets, xCenter, barY, 'bar', occupiedLabelRects);
-    drawValueLabels(ctx, lineSets, lineX, lineY, 'line', occupiedLabelRects);
-    drawLegend(ctx, barSets.concat(lineSets), pad, width);
-    drawAxisMaxLabels(ctx, width, pad, barRange, lineRange, barSets[0], lineSets[0]);
+    var barLabelX = function(i, dsIndex){
+      var offset = (dsIndex - (barSets.length - 1) / 2) * barWidth;
+      return xCenter(i) + offset;
+    };
+    drawValueLabels(ctx, barSets, barLabelX, barY, 'bar', occupiedLabelRects, compact, 0, pad, width, height);
+    drawValueLabels(ctx, lineSets, lineX, lineY, 'line', occupiedLabelRects, compact, barSets.length, pad, width, height);
+    drawLegend(ctx, barSets.concat(lineSets), pad, width, compact);
+    drawAxisMaxLabels(ctx, width, pad, barRange, lineRange, barSets[0], lineSets[0], compact);
   }
 
-  document.querySelectorAll('.chart-container canvas').forEach(function(canvas){
+  function drawCanvas(canvas){
     var container = canvas.closest('.chart-container');
     var payload = JSON.parse(container.dataset.chartSeries || '{"labels":[],"datasets":[]}');
     if (container.dataset.chartType === 'bar-table') drawBarChart(canvas, payload);
     else if (container.dataset.chartType === 'bar-line-table' || container.dataset.chartType === 'bar-line-trend') drawBarLineChart(canvas, payload);
     else drawLineChart(canvas, payload);
+  }
+
+  var canvases = Array.prototype.slice.call(document.querySelectorAll('.chart-container canvas'));
+  canvases.forEach(drawCanvas);
+  var resizeTimer;
+  window.addEventListener('resize', function(){
+    window.clearTimeout(resizeTimer);
+    resizeTimer = window.setTimeout(function(){ canvases.forEach(drawCanvas); }, 120);
   });
 })();
 </script>

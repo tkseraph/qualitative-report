@@ -1186,6 +1186,51 @@ def test_render_report_html_dispatches_bar_line_trend_to_mixed_renderer(tmp_path
     html = output_path.read_text(encoding="utf-8")
     assert "data-chart-type=\"bar-line-trend\"" in html
     assert "data-chart-visual=\"mixed\"" in html
+
+
+def test_render_report_html_adds_mobile_chart_and_table_readability_contract(tmp_path):
+    md_text = SAMPLE_LEVEL_RESEARCH_MD + """
+## 维度一：商业模式与资本特征
+
+### 图表六：同业质量坐标
+
+chart_ready: true; chart_id: mobile-peer; chart_target: dimension_1; chart_type: mixed; x_axis: 公司; bar_series: 营业收入; line_series: 销售毛利率,加权ROE; unit_map: 营业收入=亿元,销售毛利率=%,加权ROE=%
+
+读图结论：移动端图表保留趋势，精确数值由可横向滚动的数据表承载。
+
+| 同业公司 | 营业收入 | 销售毛利率 | 加权ROE |
+|---|---:|---:|---:|
+| 益坤电气股份 | 3.73 | 32.23 | 18.65 |
+| 神马电力股份 | 17.21 | 46.18 | 24.28 |
+"""
+    report_path = tmp_path / "920222_BJ_qualitative_report.md"
+    output_path = tmp_path / "920222_BJ_qualitative_report.html"
+    report_path.write_text(md_text, encoding="utf-8")
+
+    render_report_html(report_path, output_path, standalone=True)
+
+    html = output_path.read_text(encoding="utf-8")
+    soup = BeautifulSoup(html, "html.parser")
+    chart = soup.select_one('.chart-container[data-chart-id="mobile-peer"]')
+    assert chart is not None
+    assert chart["data-mobile-density"] == "reduced"
+    assert chart["data-mobile-value-labels"] == "collision-aware"
+    assert len(soup.select('.chart-table-region[data-mobile-table="scroll"]')) >= 1
+    assert soup.select_one('meta[name="qualitative-mobile-contract"]')["content"] == "2.0"
+    assert "height:268px" in html
+    assert "横向滑动查看完整数据" in html
+    assert "var compact = width <= 620 || mobileMedia.matches" in html
+    assert "window.matchMedia('(max-width: 700px)')" in html
+    assert "formatCompactValue" in html
+    assert "valueLabelPriority" in html
+    assert "index === ds.values.length - 1 ? 1000" in html
+    assert "function drawValueLabels(ctx, datasets, x, y, role, occupiedLabelRects, compact, colorOffset, pad, width, height){\n    if (compact) return" not in html
+    assert "if (compact) drawValueLabels(ctx, lineDatasets, x, y, 'line'" in html
+    assert "drawValueLabels(ctx, barSets, barLabelX, y, 'bar', [], compact" in html
+    assert "compactCategoryLabel" in html
+    assert "compactLabelIndexes" in html
+    assert "position:sticky;left:0" in html
+    assert "window.addEventListener('resize'" in html
     assert "container.dataset.chartType === 'bar-line-trend'" in html
     assert "drawBarLineChart(canvas, payload)" in html
 
@@ -1244,8 +1289,8 @@ def test_render_report_html_uses_collision_aware_value_labels_for_dense_mixed_ch
     assert "function rectsOverlap" in html
     assert "function shouldDrawValueLabel" in html
     assert "occupiedLabelRects" in html
-    assert "drawValueLabels(ctx, barSets, xCenter, barY, 'bar', occupiedLabelRects)" in html
-    assert "drawValueLabels(ctx, lineSets, lineX, lineY, 'line', occupiedLabelRects)" in html
+    assert "drawValueLabels(ctx, barSets, barLabelX, barY, 'bar', occupiedLabelRects, compact, 0, pad, width, height)" in html
+    assert "drawValueLabels(ctx, lineSets, lineX, lineY, 'line', occupiedLabelRects, compact, barSets.length, pad, width, height)" in html
 
 
 
@@ -1271,10 +1316,10 @@ def test_render_report_html_positions_mixed_amount_and_ratio_labels_on_separate_
 
     html = output_path.read_text(encoding="utf-8")
     assert "data-chart-visual=\"mixed\"" in html
-    assert "drawAxisMaxLabels(ctx, width, pad, barRange, lineRange, barSets[0], lineSets[0])" in html
-    assert "drawValueLabels(ctx, barSets, xCenter, barY, 'bar', occupiedLabelRects)" in html
-    assert "drawValueLabels(ctx, lineSets, lineX, lineY, 'line', occupiedLabelRects)" in html
-    assert "pad: {left: 58, right: 58" in html
+    assert "drawAxisMaxLabels(ctx, width, pad, barRange, lineRange, barSets[0], lineSets[0], compact)" in html
+    assert "drawValueLabels(ctx, barSets, barLabelX, barY, 'bar', occupiedLabelRects, compact, 0, pad, width, height)" in html
+    assert "drawValueLabels(ctx, lineSets, lineX, lineY, 'line', occupiedLabelRects, compact, barSets.length, pad, width, height)" in html
+    assert ": {left: 58, right: 58, top: 28, bottom: 38}" in html
 
 
 
@@ -2007,11 +2052,11 @@ def test_render_report_html_wraps_chart_legends_to_avoid_overlap(tmp_path):
     render_report_html(report_path, output_path, standalone=True)
 
     html = output_path.read_text(encoding="utf-8")
-    assert "function drawLegend(ctx, datasets, pad, width)" in html
+    assert "function drawLegend(ctx, datasets, pad, width, compact)" in html
     assert "ctx.measureText(label).width" in html
     assert "if (x !== pad.left && x + itemWidth > maxX)" in html
-    assert "drawLegend(ctx, payload.datasets, pad, width)" in html
-    assert "drawLegend(ctx, barSets.concat(lineSets), pad, width)" in html
+    assert "drawLegend(ctx, payload.datasets, pad, width, compact)" in html
+    assert "drawLegend(ctx, barSets.concat(lineSets), pad, width, compact)" in html
 
 
 
