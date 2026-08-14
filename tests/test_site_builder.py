@@ -103,8 +103,7 @@ def test_build_site_refreshes_public_report_identity_and_metadata(tmp_path):
     assert detail.index('<strong class="publication-site-name">价值涌现</strong>') < detail.index(
         '<span class="publication-registered-name">小付的笔记</span>'
     )
-    assert ".publication-compliance .publication-site-name{font-family:" in detail
-    assert "font-size:16px" in detail
+    assert ".publication-compliance .publication-site-name{font-family:'Songti SC','STSong',serif;font-size:18px}" in detail
     assert ".publication-compliance .publication-registered-name" in detail
     assert "font-size:11px" in detail
     assert detail.index("京公网安备11010602203105号") < detail.index("京ICP备202605015号-1")
