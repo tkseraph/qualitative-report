@@ -1,5 +1,21 @@
 [
   {
+    "id": "920222-bj-qualitative-2026-08-14",
+    "company_name": "益坤电气",
+    "stock_code": "920222.BJ",
+    "report_type": "qualitative",
+    "report_type_label": "商业质量评估",
+    "title": "益坤电气（920222.BJ）商业质量评估报告",
+    "summary": "益坤是靠材料、认证与场景适配获得较高回报的细分电气制造商；优势已由核心产品毛利与ROE验证，但低毛利扩张和现金转化限制评级上限。",
+    "verdict": "B+ / 中等偏强 · 观察",
+    "industry": "电气设备",
+    "exchange": "BSE",
+    "analysis_date": "2026-08-14",
+    "published_at": "2026-08-14",
+    "public_path": "reports/920222-bj/qualitative/2026-08-14/index.html",
+    "content_path": "reports/920222-bj/qualitative/2026-08-14/index.html"
+  },
+  {
     "id": "920117-bj-qualitative-2026-08-12",
     "company_name": "龙鑫智能",
     "stock_code": "920117.BJ",
