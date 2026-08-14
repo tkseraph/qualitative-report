@@ -1214,25 +1214,46 @@ chart_ready: true; chart_id: mobile-peer; chart_target: dimension_1; chart_type:
     chart = soup.select_one('.chart-container[data-chart-id="mobile-peer"]')
     assert chart is not None
     assert chart["data-mobile-density"] == "reduced"
-    assert chart["data-mobile-value-labels"] == "collision-aware"
+    assert chart["data-mobile-value-labels"] == "collision-aware-complete"
+    assert chart["data-mobile-category-labels"] == "complete"
+    assert chart["data-mobile-chart-scroll"] == "responsive-wide"
     assert len(soup.select('.chart-table-region[data-mobile-table="scroll"]')) >= 1
-    assert soup.select_one('meta[name="qualitative-mobile-contract"]')["content"] == "2.0"
-    assert "height:268px" in html
+    assert soup.select_one('meta[name="qualitative-mobile-contract"]')["content"] == "2.2"
+    assert "height:286px" in html
     assert "横向滑动查看完整数据" in html
     assert "var compact = width <= 620 || mobileMedia.matches" in html
     assert "window.matchMedia('(max-width: 700px)')" in html
     assert "formatCompactValue" in html
+    assert "compactUnit" in html
+    assert "compactValueFont" in html
+    assert "mobileChartMinWidth" in html
+    assert "--mobile-chart-width" in html
+    assert "横向滑动查看完整图表" in html
     assert "valueLabelPriority" in html
+    assert "var seriesXOffset = role === 'line'" in html
+    assert "(datasets.length - 1) / 2) * 18" in html
     assert "index === ds.values.length - 1 ? 1000" in html
     assert "function drawValueLabels(ctx, datasets, x, y, role, occupiedLabelRects, compact, colorOffset, pad, width, height){\n    if (compact) return" not in html
-    assert "if (compact) drawValueLabels(ctx, lineDatasets, x, y, 'line'" in html
+    assert "compact ? drawValueLabels(ctx, lineDatasets, x, y, 'line'" in html
     assert "drawValueLabels(ctx, barSets, barLabelX, y, 'bar', [], compact" in html
     assert "compactCategoryLabel" in html
-    assert "compactLabelIndexes" in html
+    assert "compactCategoryLines" not in html
+    assert "compactLabelIndexes" not in html
+    assert "if (!visible[i]) return" not in html
+    assert "if (!placed && compact && bestPlacement)" in html
+    assert "overlapPenalty" in html
+    assert "drawValueLabelText" in html
+    assert "strokeText" in html
+    assert "mobileValueLabelsDrawn" in html
+    assert "mobileValueLabelsExpected" in html
+    assert "mobileCategoryLabelsDrawn" in html
+    assert "mobileCategoryLabelsExpected" in html
     assert "position:sticky;left:0" in html
     assert "window.addEventListener('resize'" in html
     assert "container.dataset.chartType === 'bar-line-trend'" in html
     assert "drawBarLineChart(canvas, payload)" in html
+    assert "var lineSets = payload.datasets.filter(function(ds){ return ds.role !== 'bar'; });" in html
+    assert "filter(function(ds){ return ds.role !== 'bar'; }).slice(0, 3)" not in html
 
 
 

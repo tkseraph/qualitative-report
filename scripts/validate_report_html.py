@@ -119,11 +119,13 @@ def validate_html(html_text: str, markdown_text: str) -> tuple[list[str], dict]:
         mobile_chart_contract_ok = (
             len(chart_table_regions) == len(chart_nodes)
             and all(node.get("data-mobile-density") == "reduced" for node in chart_nodes)
-            and all(node.get("data-mobile-value-labels") == "collision-aware" for node in chart_nodes)
+            and all(node.get("data-mobile-value-labels") == "collision-aware-complete" for node in chart_nodes)
+            and all(node.get("data-mobile-category-labels") == "complete" for node in chart_nodes)
+            and all(node.get("data-mobile-chart-scroll") == "responsive-wide" for node in chart_nodes)
         )
         if not mobile_chart_contract_ok:
             errors.append(
-                "each chart must include reduced-density mobile rendering, collision-aware value labels, and a dedicated scrollable data-table region"
+                "each chart must include reduced-density mobile rendering, responsive-wide chart scrolling, complete category/value labels, and a dedicated scrollable data-table region"
             )
 
     chart_metadata_match = True

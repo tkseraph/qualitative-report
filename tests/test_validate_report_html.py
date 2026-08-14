@@ -9,7 +9,7 @@ def test_html_validator_requires_typed_open_moat_components_and_clean_text():
 ## 维度五
 ## 维度六
 """
-    html = """<html><head><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="qualitative-mobile-contract" content="2.0"></head><body>
+    html = """<html><head><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="qualitative-mobile-contract" content="2.2"></head><body>
 <h2>维度一</h2><h2>维度二</h2><h2>维度三</h2>
 <h2>维度四</h2><h2>维度五</h2><h2>维度六</h2>
 <details data-component-role="moat-interrogation" open></details>
@@ -25,7 +25,7 @@ def test_html_validator_requires_typed_open_moat_components_and_clean_text():
 
 def test_html_validator_rejects_raw_source_tag_and_closed_moat_table():
     markdown = "\n".join(f"## 维度{x}" for x in "一二三四五六")
-    html = """<html><head><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="qualitative-mobile-contract" content="2.0"></head><body>
+    html = """<html><head><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="qualitative-mobile-contract" content="2.2"></head><body>
 <h2>维度一</h2><h2>维度二</h2><h2>维度三</h2>
 <h2>维度四</h2><h2>维度五</h2><h2>维度六</h2>
 <p>[src: 年报P.21]</p>
@@ -39,7 +39,7 @@ def test_html_validator_rejects_raw_source_tag_and_closed_moat_table():
 
 def test_html_validator_rejects_dimension_heading_drift():
     markdown = "\n".join(f"## 维度{x}" for x in "一二三四五六")
-    html = """<html><head><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="qualitative-mobile-contract" content="2.0"></head><body>
+    html = """<html><head><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="qualitative-mobile-contract" content="2.2"></head><body>
 <h2>维度二</h2><h2>维度一</h2><h2>维度三</h2>
 <h2>维度四</h2><h2>维度五</h2><h2>维度六</h2>
 <details data-component-role="moat-interrogation" open></details>
@@ -52,7 +52,7 @@ def test_html_validator_rejects_dimension_heading_drift():
 
 def test_html_validator_current_contract_requires_six_core_charts():
     markdown = "\n".join(f"## 维度{x}" for x in "一二三四五六") + "\nanalysis_contract_version: 2.1\n"
-    html = """<html><head><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="qualitative-mobile-contract" content="2.0"></head><body>
+    html = """<html><head><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="qualitative-mobile-contract" content="2.2"></head><body>
 <h2>维度一</h2><h2>维度二</h2><h2>维度三</h2>
 <h2>维度四</h2><h2>维度五</h2><h2>维度六</h2>
 <details data-component-role="moat-interrogation" open></details>
@@ -67,12 +67,12 @@ def test_html_validator_rejects_chart_unit_or_role_drift_from_metadata():
     markdown = "\n".join(f"## 维度{x}" for x in "一二三四五六") + """
 chart_ready: true; chart_id: unit-check; chart_type: mixed; x_axis: 年份; bar_series: D&A; line_series: Capex/D&A; unit_map: D&A=亿元, Capex/D&A=倍
 """
-    html = """<html><head><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="qualitative-mobile-contract" content="2.0"></head><body>
+    html = """<html><head><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="qualitative-mobile-contract" content="2.2"></head><body>
 <h2>维度一</h2><h2>维度二</h2><h2>维度三</h2>
 <h2>维度四</h2><h2>维度五</h2><h2>维度六</h2>
 <details data-component-role="moat-interrogation" open></details>
 <details data-component-role="moat-falsification" open></details>
-<div class="chart-container" data-chart-id="unit-check" data-mobile-density="reduced" data-mobile-value-labels="collision-aware" data-chart-series='{"datasets":[{"label":"D&amp;A","unit":"","role":"bar"},{"label":"Capex/D&amp;A","unit":"x","role":"bar"}]}'></div>
+<div class="chart-container" data-chart-id="unit-check" data-mobile-density="reduced" data-mobile-value-labels="collision-aware-complete" data-mobile-category-labels="complete" data-mobile-chart-scroll="responsive-wide" data-chart-series='{"datasets":[{"label":"D&amp;A","unit":"","role":"bar"},{"label":"Capex/D&amp;A","unit":"x","role":"bar"}]}'></div>
 <div class="chart-table-region" data-mobile-table="scroll"></div>
 </body></html>"""
     errors, manifest = validate_html(html, markdown)
@@ -85,7 +85,7 @@ def test_html_validator_requires_mobile_chart_density_and_scroll_region():
     markdown = "\n".join(f"## 维度{x}" for x in "一二三四五六") + """
 chart_ready: true; chart_id: mobile-check; chart_type: mixed; x_axis: 年份; bar_series: 收入; line_series: ROE; unit_map: 收入=亿元, ROE=%
 """
-    html = """<html><head><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="qualitative-mobile-contract" content="2.0"></head><body>
+    html = """<html><head><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="qualitative-mobile-contract" content="2.2"></head><body>
 <h2>维度一</h2><h2>维度二</h2><h2>维度三</h2>
 <h2>维度四</h2><h2>维度五</h2><h2>维度六</h2>
 <details data-component-role="moat-interrogation" open></details>
@@ -113,5 +113,5 @@ def test_html_validator_rejects_stale_mobile_render_contract():
 
     errors, manifest = validate_html(html, markdown)
 
-    assert any("mobile contract must be 2.0" in error for error in errors)
+    assert any("mobile contract must be 2.2" in error for error in errors)
     assert manifest["validation"]["mobile_render_contract"] is False
