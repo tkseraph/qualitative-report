@@ -15,6 +15,9 @@
   --serif: "Songti SC", "STSong", "Noto Serif CJK SC", Georgia, serif;
   --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
   --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.45, 0.64, 1);
+  --shadow-soft: 0 18px 45px rgba(23, 25, 22, 0.08), 0 4px 14px rgba(23, 25, 22, 0.05);
 }
 
 * {
@@ -70,6 +73,13 @@ input {
   position: sticky;
   top: 0;
   z-index: 20;
+  transition: background 260ms ease, border-color 260ms ease, box-shadow 320ms var(--ease-out);
+}
+
+.masthead.is-scrolled {
+  background: rgba(244, 241, 233, 0.96);
+  border-bottom-color: rgba(23, 25, 22, 0.2);
+  box-shadow: 0 12px 34px rgba(23, 25, 22, 0.08);
 }
 
 .masthead-inner {
@@ -97,6 +107,17 @@ input {
   color: var(--paper-raised);
   font-family: var(--serif);
   font-size: 19px;
+  box-shadow: 0 0 0 0 rgba(163, 59, 46, 0);
+  transition: transform 360ms var(--ease-spring), background 220ms ease, border-color 220ms ease,
+    box-shadow 300ms ease;
+}
+
+.brand:hover .brand-mark,
+.brand:focus-visible .brand-mark {
+  background: var(--signal);
+  border-color: var(--signal);
+  box-shadow: 0 8px 24px rgba(163, 59, 46, 0.22);
+  transform: translateY(-3px) rotate(-4deg) scale(1.04);
 }
 
 .brand strong,
@@ -135,9 +156,13 @@ input {
   border-radius: 50%;
   background: #3f7250;
   box-shadow: 0 0 0 4px rgba(63, 114, 80, 0.12);
+  animation: statusPulse 2.8s ease-in-out infinite;
 }
 
 .hero {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   min-height: 480px;
   padding: 88px 0 72px;
   display: grid;
@@ -145,6 +170,34 @@ input {
   gap: 72px;
   align-items: end;
   border-bottom: 1px solid var(--line-strong);
+}
+
+.hero::before,
+.hero::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  border-radius: 50%;
+  filter: blur(6px);
+  pointer-events: none;
+}
+
+.hero::before {
+  top: 34px;
+  left: -170px;
+  width: 470px;
+  height: 470px;
+  background: radial-gradient(circle, rgba(163, 59, 46, 0.13), rgba(163, 59, 46, 0) 68%);
+  animation: heroGlowOne 11s ease-in-out infinite alternate;
+}
+
+.hero::after {
+  right: -170px;
+  bottom: -90px;
+  width: 430px;
+  height: 430px;
+  background: radial-gradient(circle, rgba(51, 75, 59, 0.12), rgba(51, 75, 59, 0) 70%);
+  animation: heroGlowTwo 13s ease-in-out infinite alternate;
 }
 
 .eyebrow {
@@ -171,6 +224,17 @@ input {
   font-style: normal;
 }
 
+@supports (-webkit-background-clip: text) {
+  .hero h1 em {
+    background: linear-gradient(112deg, #8e2e25 12%, #c45745 43%, #a33b2e 62%, #6f2923 92%);
+    background-size: 220% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: signalSweep 8s ease-in-out infinite alternate;
+  }
+}
+
 .hero-lead {
   max-width: 700px;
   margin: 30px 0 0;
@@ -191,6 +255,13 @@ input {
   gap: 10px;
   padding: 18px 0;
   border-bottom: 1px solid var(--line);
+  transition: transform 320ms var(--ease-out), background 220ms ease, padding 320ms var(--ease-out);
+}
+
+.hero-stats > div:hover {
+  padding-left: 10px;
+  background: linear-gradient(90deg, rgba(163, 59, 46, 0.07), transparent 82%);
+  transform: translateX(4px);
 }
 
 .hero-stats dt {
@@ -252,6 +323,8 @@ input {
   padding: 0 16px;
   border: 1px solid var(--line-strong);
   background: rgba(251, 250, 246, 0.72);
+  transition: transform 280ms var(--ease-out), border-color 180ms ease, box-shadow 280ms ease,
+    background 180ms ease;
 }
 
 .search-box > span[aria-hidden] {
@@ -276,7 +349,9 @@ input {
 
 .search-box:focus-within {
   border-color: var(--signal);
-  box-shadow: 0 0 0 3px rgba(163, 59, 46, 0.1);
+  background: rgba(251, 250, 246, 0.95);
+  box-shadow: 0 0 0 3px rgba(163, 59, 46, 0.1), 0 16px 36px rgba(23, 25, 22, 0.09);
+  transform: translateY(-2px);
 }
 
 .search-box kbd {
@@ -302,7 +377,8 @@ input {
   color: var(--ink-soft);
   cursor: pointer;
   font-size: 13px;
-  transition: background 160ms ease, border-color 160ms ease, color 160ms ease;
+  transition: background 180ms ease, border-color 180ms ease, color 180ms ease,
+    transform 260ms var(--ease-spring), box-shadow 240ms ease;
 }
 
 .filter-button span {
@@ -319,6 +395,8 @@ input {
   background: var(--ink);
   color: var(--paper-raised);
   outline: none;
+  box-shadow: 0 8px 22px rgba(23, 25, 22, 0.14);
+  transform: translateY(-2px);
 }
 
 .filter-button.is-active span,
@@ -379,23 +457,48 @@ input {
 }
 
 .report-row {
+  position: relative;
   border-bottom: 1px solid var(--line);
 }
 
 .report-row > a {
+  position: relative;
   display: grid;
   grid-template-columns: 145px minmax(0, 1fr) 118px;
   gap: 24px;
   padding: 24px 10px 24px 0;
   text-decoration: none;
-  transition: background 160ms ease, padding 160ms ease;
+  border-radius: 10px;
+  transition: background 220ms ease, padding 320ms var(--ease-out), transform 320ms var(--ease-out),
+    box-shadow 280ms ease;
+}
+
+.report-row > a::before {
+  content: "";
+  position: absolute;
+  inset: 14px auto 14px 0;
+  width: 3px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, var(--signal), #cf7b61);
+  box-shadow: 0 0 18px rgba(163, 59, 46, 0.24);
+  opacity: 0;
+  transform: scaleY(0.25);
+  transition: opacity 220ms ease, transform 360ms var(--ease-out);
 }
 
 .report-row > a:hover,
 .report-row > a:focus-visible {
   padding-left: 14px;
-  background: rgba(251, 250, 246, 0.78);
+  background: rgba(251, 250, 246, 0.9);
+  box-shadow: var(--shadow-soft);
+  transform: translateY(-3px);
   outline: none;
+}
+
+.report-row > a:hover::before,
+.report-row > a:focus-visible::before {
+  opacity: 1;
+  transform: scaleY(1);
 }
 
 .report-identity span {
@@ -473,6 +576,13 @@ input {
   margin-top: 31px;
   color: var(--signal);
   font-size: 12px;
+  transition: transform 280ms var(--ease-out), color 180ms ease;
+}
+
+.report-row > a:hover .report-date span,
+.report-row > a:focus-visible .report-date span {
+  color: #c45140;
+  transform: translateX(5px);
 }
 
 .category-empty {
@@ -655,6 +765,14 @@ input {
     padding: 58px 0 54px;
   }
 
+  .hero::before {
+    left: -270px;
+  }
+
+  .hero::after {
+    right: -280px;
+  }
+
   .hero h1 {
     font-size: clamp(40px, 13vw, 58px);
   }
@@ -692,6 +810,11 @@ input {
     padding: 22px 0;
   }
 
+  .report-row > a:hover,
+  .report-row > a:focus-visible {
+    padding-left: 10px;
+  }
+
   .report-date {
     display: flex;
     justify-content: space-between;
@@ -713,6 +836,57 @@ input {
   }
 }
 
+.motion-ready .motion-reveal {
+  opacity: 0;
+  filter: blur(7px);
+  transform: translateY(30px) scale(0.988);
+  transition: opacity 760ms var(--ease-out), transform 820ms var(--ease-out), filter 720ms var(--ease-out);
+  transition-delay: var(--motion-delay, 0ms);
+}
+
+.motion-ready .motion-reveal.is-revealed {
+  opacity: 1;
+  filter: blur(0);
+  transform: translateY(0) scale(1);
+}
+
+@keyframes statusPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 4px rgba(63, 114, 80, 0.12), 0 0 0 0 rgba(63, 114, 80, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(63, 114, 80, 0.12), 0 0 0 9px rgba(63, 114, 80, 0);
+  }
+}
+
+@keyframes heroGlowOne {
+  from {
+    transform: translate3d(-20px, -12px, 0) scale(0.96);
+  }
+  to {
+    transform: translate3d(34px, 26px, 0) scale(1.08);
+  }
+}
+
+@keyframes heroGlowTwo {
+  from {
+    transform: translate3d(24px, 18px, 0) scale(1.04);
+  }
+  to {
+    transform: translate3d(-28px, -18px, 0) scale(0.94);
+  }
+}
+
+@keyframes signalSweep {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 100% 50%;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;
@@ -722,5 +896,13 @@ input {
   *::before,
   *::after {
     transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+
+  .motion-ready .motion-reveal {
+    opacity: 1;
+    filter: none;
+    transform: none;
   }
 }

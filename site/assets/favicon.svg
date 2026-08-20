@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="价值涌现">
+  <rect width="64" height="64" rx="12" fill="#171916"/>
+  <rect x="5" y="5" width="54" height="54" rx="9" fill="none" stroke="#f4f1e9" stroke-opacity=".2"/>
+  <circle cx="51" cy="13" r="4" fill="#a33b2e"/>
+  <text x="32" y="43" fill="#f4f1e9" font-family="Songti SC, STSong, serif" font-size="31" text-anchor="middle">研</text>
+</svg>

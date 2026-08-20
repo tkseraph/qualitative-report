@@ -35,6 +35,9 @@ def test_build_site_writes_categorized_catalog_and_private_robots(tmp_path):
     assert 'class="public-security-record"' in html
     assert 'src="/assets/beian.png"' in html
     assert (output / "assets" / "beian.png").is_file()
+    assert (output / "assets" / "favicon.svg").is_file()
+    assert (output / "assets" / "report-reader.css").is_file()
+    assert (output / "assets" / "report-reader.js").is_file()
     assert "版权所有：网站主办者" in html
     assert "©" not in html
     assert html.index("京公网安备11010602203105号") < html.index("京ICP备202605015号-1")
@@ -106,6 +109,20 @@ def test_build_site_refreshes_public_report_identity_and_metadata(tmp_path):
     assert ".publication-compliance .publication-site-name{font-family:'Songti SC','STSong',serif;font-size:18px}" in detail
     assert ".publication-compliance .publication-registered-name" in detail
     assert "font-size:11px" in detail
+    assert detail.count('id="publication-reader-style"') == 1
+    assert detail.count('id="publication-reader-script"') == 1
+    assert detail.count('class="publication-reading-progress"') == 1
+    assert detail.count('data-publication-reader') == 1
+    assert detail.count('data-reader-top') == 1
+    assert 'href="/assets/report-reader.css"' in detail
+    assert 'src="/assets/report-reader.js"' in detail
+    assert 'href="/assets/favicon.svg"' in detail
+    reader_css = (output / "assets" / "report-reader.css").read_text(encoding="utf-8")
+    reader_js = (output / "assets" / "report-reader.js").read_text(encoding="utf-8")
+    assert "publication-reading-progress" in reader_css
+    assert "prefers-reduced-motion" in reader_css
+    assert "IntersectionObserver" in reader_js
+    assert 'querySelectorAll("h2, h3")' in reader_js
     assert detail.index("京公网安备11010602203105号") < detail.index("京ICP备202605015号-1")
     assert detail.index('<div class="publication-return">') < detail.index(
         '<section class="publication-compliance"'

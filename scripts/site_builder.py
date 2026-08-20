@@ -128,6 +128,16 @@ def _public_url(public_path: str) -> str:
 
 PUBLIC_COMPLIANCE_CSS = """.publication-shell-brand>span{display:flex;flex-direction:column;gap:1px}.publication-shell-brand small{color:rgba(244,241,233,.56);font-size:9px;font-weight:400;letter-spacing:.04em}.publication-compliance{padding:32px 24px;text-align:center;background:#171916;color:#f4f1e9;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif}.publication-compliance .publication-site-name,.publication-compliance .publication-registered-name{display:block}.publication-compliance .publication-site-name{font-family:'Songti SC','STSong',serif;font-size:18px}.publication-compliance .publication-registered-name,.publication-compliance p{margin:6px 0 0;color:rgba(244,241,233,.64);font-size:11px;line-height:1.7}.publication-compliance .publication-copyright{margin-top:8px;color:rgba(244,241,233,.68)}.publication-records{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:10px 20px;margin-top:10px}.publication-records a,.publication-records span{display:inline-flex;align-items:center;margin:0;color:rgba(244,241,233,.64);font-size:11px;line-height:1.7}.publication-compliance .public-security-record{gap:6px}.publication-compliance .public-security-record img{width:18px;height:20px;object-fit:contain;flex:0 0 auto}@media(max-width:640px){.publication-records{gap:8px 16px}}"""
 
+PUBLIC_READER_MARKUP = """<div class="publication-reading-progress" aria-hidden="true"><span data-reader-progress></span></div>
+<aside class="publication-reader is-pending" data-publication-reader aria-label="报告阅读导航">
+  <button class="publication-reader-toggle" type="button" data-reader-toggle aria-expanded="false" aria-controls="publication-reader-panel"><span class="publication-reader-toggle-dot" aria-hidden="true"></span><span>目录</span></button>
+  <div class="publication-reader-panel" id="publication-reader-panel" data-reader-panel>
+    <div class="publication-reader-heading"><div class="publication-reader-kicker">READING MAP</div><div class="publication-reader-title-row"><strong class="publication-reader-title">报告目录</strong><span class="publication-reader-count" data-reader-count></span></div></div>
+    <nav class="publication-reader-nav" aria-label="报告目录"><ol data-reader-list></ol></nav>
+  </div>
+</aside>
+<button class="publication-to-top" type="button" data-reader-top aria-label="回到顶部"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6.5 10.5 12 5l5.5 5.5"/></svg></button>"""
+
 
 def _report_absolute_url(config: dict[str, str], public_path: str) -> str:
     base_url = config.get("base_url", "")
@@ -158,6 +168,24 @@ def _prepare_public_report(
         cleaned,
         flags=re.IGNORECASE | re.DOTALL,
     )
+    cleaned = re.sub(
+        r"\s*<link\s+id=[\"']publication-reader-style[\"'][^>]*>\s*",
+        "\n",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = re.sub(
+        r"\s*<script\s+id=[\"']publication-reader-script[\"'][^>]*>\s*</script>\s*",
+        "\n",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    for reader_pattern in (
+        r'\s*<div\s+class=["\']publication-reading-progress["\'][^>]*>.*?</div>\s*',
+        r'\s*<aside\s+class=["\'][^"\']*publication-reader[^"\']*["\'][^>]*>.*?</aside>\s*',
+        r'\s*<button\s+class=["\']publication-to-top["\'][^>]*>.*?</button>\s*',
+    ):
+        cleaned = re.sub(reader_pattern, "\n", cleaned, flags=re.IGNORECASE | re.DOTALL)
 
     registered_name = config["registered_site_name"]
     site_name = config["site_name"]
@@ -173,6 +201,7 @@ def _prepare_public_report(
     metadata_tags = [
         f'<meta name="application-name" content="{html_lib.escape(registered_name, quote=True)}">',
         f'<meta property="og:site_name" content="{html_lib.escape(registered_name, quote=True)}">',
+        '<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">',
     ]
     if canonical:
         metadata_tags.extend(
@@ -185,11 +214,26 @@ def _prepare_public_report(
     else:
         metadata_tags.append('<meta name="robots" content="noindex,nofollow">')
     metadata_tags.append(f'<style id="publication-compliance-style">{PUBLIC_COMPLIANCE_CSS}</style>')
+    metadata_tags.extend(
+        (
+            '<link id="publication-reader-style" rel="stylesheet" href="/assets/report-reader.css">',
+            '<script id="publication-reader-script" src="/assets/report-reader.js" defer></script>',
+        )
+    )
     if not re.search(r"</head>", cleaned, re.IGNORECASE):
         raise SiteBuildError(f"Published report has no closing head tag: {report['public_path']}")
     cleaned = re.sub(
         r"</head>",
         "\n".join(metadata_tags) + "\n</head>",
+        cleaned,
+        count=1,
+        flags=re.IGNORECASE,
+    )
+    if not re.search(r"<body(?:\s[^>]*)?>", cleaned, re.IGNORECASE):
+        raise SiteBuildError(f"Published report has no opening body tag: {report['public_path']}")
+    cleaned = re.sub(
+        r"(<body(?:\s[^>]*)?>)",
+        lambda match: match.group(1) + "\n" + PUBLIC_READER_MARKUP,
         cleaned,
         count=1,
         flags=re.IGNORECASE,
