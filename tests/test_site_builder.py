@@ -1,4 +1,5 @@
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -48,6 +49,9 @@ def test_build_site_writes_categorized_catalog_and_private_robots(tmp_path):
     assert "只发布完成复核的版本" not in html
     assert "这里仅收录经过人工复核" not in html
     assert "报告目录" in html
+    assert re.search(r'href="assets/site\.css\?v=[0-9a-f]{12}"', html)
+    assert re.search(r'src="assets/site\.js\?v=[0-9a-f]{12}"', html)
+    assert re.search(r'href="/assets/favicon\.svg\?v=[0-9a-f]{12}"', html)
     assert "商业质量" in html
     assert "投资策略" in html
     assert "估值研究" in html
@@ -114,9 +118,9 @@ def test_build_site_refreshes_public_report_identity_and_metadata(tmp_path):
     assert detail.count('class="publication-reading-progress"') == 1
     assert detail.count('data-publication-reader') == 1
     assert detail.count('data-reader-top') == 1
-    assert 'href="/assets/report-reader.css"' in detail
-    assert 'src="/assets/report-reader.js"' in detail
-    assert 'href="/assets/favicon.svg"' in detail
+    assert re.search(r'href="/assets/report-reader\.css\?v=[0-9a-f]{12}"', detail)
+    assert re.search(r'src="/assets/report-reader\.js\?v=[0-9a-f]{12}"', detail)
+    assert re.search(r'href="/assets/favicon\.svg\?v=[0-9a-f]{12}"', detail)
     reader_css = (output / "assets" / "report-reader.css").read_text(encoding="utf-8")
     reader_js = (output / "assets" / "report-reader.js").read_text(encoding="utf-8")
     assert "publication-reading-progress" in reader_css

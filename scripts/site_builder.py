@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import html as html_lib
 import json
 import re
@@ -53,6 +54,14 @@ REQUIRED_REPORT_FIELDS = {
     "public_path",
     "content_path",
 }
+
+VERSIONED_ASSETS = (
+    "favicon.svg",
+    "report-reader.css",
+    "report-reader.js",
+    "site.css",
+    "site.js",
+)
 
 
 class SiteBuildError(ValueError):
@@ -126,6 +135,17 @@ def _public_url(public_path: str) -> str:
     return path
 
 
+def _asset_version(site_root: Path) -> str:
+    digest = hashlib.sha256()
+    for filename in VERSIONED_ASSETS:
+        asset_path = site_root / "assets" / filename
+        if not asset_path.is_file():
+            raise SiteBuildError(f"Missing versioned site asset: {asset_path}")
+        digest.update(filename.encode("utf-8"))
+        digest.update(asset_path.read_bytes())
+    return digest.hexdigest()[:12]
+
+
 PUBLIC_COMPLIANCE_CSS = """.publication-shell-brand>span{display:flex;flex-direction:column;gap:1px}.publication-shell-brand small{color:rgba(244,241,233,.56);font-size:9px;font-weight:400;letter-spacing:.04em}.publication-compliance{padding:32px 24px;text-align:center;background:#171916;color:#f4f1e9;font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif}.publication-compliance .publication-site-name,.publication-compliance .publication-registered-name{display:block}.publication-compliance .publication-site-name{font-family:'Songti SC','STSong',serif;font-size:18px}.publication-compliance .publication-registered-name,.publication-compliance p{margin:6px 0 0;color:rgba(244,241,233,.64);font-size:11px;line-height:1.7}.publication-compliance .publication-copyright{margin-top:8px;color:rgba(244,241,233,.68)}.publication-records{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:10px 20px;margin-top:10px}.publication-records a,.publication-records span{display:inline-flex;align-items:center;margin:0;color:rgba(244,241,233,.64);font-size:11px;line-height:1.7}.publication-compliance .public-security-record{gap:6px}.publication-compliance .public-security-record img{width:18px;height:20px;object-fit:contain;flex:0 0 auto}@media(max-width:640px){.publication-records{gap:8px 16px}}"""
 
 PUBLIC_READER_MARKUP = """<div class="publication-reading-progress" aria-hidden="true"><span data-reader-progress></span></div>
@@ -149,6 +169,7 @@ def _prepare_public_report(
     *,
     config: dict[str, str],
     report: dict[str, Any],
+    asset_version: str,
 ) -> str:
     """Refresh site-level identity, public metadata, and legal information."""
     cleaned = re.sub(r"\s*<link\s+rel=[\"']canonical[\"'][^>]*>\s*", "\n", source_html, flags=re.IGNORECASE)
@@ -201,7 +222,7 @@ def _prepare_public_report(
     metadata_tags = [
         f'<meta name="application-name" content="{html_lib.escape(registered_name, quote=True)}">',
         f'<meta property="og:site_name" content="{html_lib.escape(registered_name, quote=True)}">',
-        '<link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">',
+        f'<link rel="icon" href="/assets/favicon.svg?v={asset_version}" type="image/svg+xml">',
     ]
     if canonical:
         metadata_tags.extend(
@@ -216,8 +237,8 @@ def _prepare_public_report(
     metadata_tags.append(f'<style id="publication-compliance-style">{PUBLIC_COMPLIANCE_CSS}</style>')
     metadata_tags.extend(
         (
-            '<link id="publication-reader-style" rel="stylesheet" href="/assets/report-reader.css">',
-            '<script id="publication-reader-script" src="/assets/report-reader.js" defer></script>',
+            f'<link id="publication-reader-style" rel="stylesheet" href="/assets/report-reader.css?v={asset_version}">',
+            f'<script id="publication-reader-script" src="/assets/report-reader.js?v={asset_version}" defer></script>',
         )
     )
     if not re.search(r"</head>", cleaned, re.IGNORECASE):
@@ -307,7 +328,13 @@ def _prepare_reports(reports: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return prepared
 
 
-def _render_index(site_root: Path, config: dict[str, str], reports: list[dict[str, Any]]) -> str:
+def _render_index(
+    site_root: Path,
+    config: dict[str, str],
+    reports: list[dict[str, Any]],
+    *,
+    asset_version: str,
+) -> str:
     env = Environment(
         loader=FileSystemLoader(site_root / "templates"),
         autoescape=select_autoescape(("html", "xml")),
@@ -334,6 +361,7 @@ def _render_index(site_root: Path, config: dict[str, str], reports: list[dict[st
         company_count=len({item["stock_code"] for item in prepared}),
         latest_company=latest.get("company_name", ""),
         latest_date_short=latest_date[5:].replace("-", ".") if len(latest_date) >= 10 else "—",
+        asset_version=asset_version,
         build_date=date.today().isoformat(),
     )
 
@@ -367,6 +395,7 @@ def build_site(
     output_dir = (output_dir or site_root / "dist").resolve()
     config = load_site_config(site_root)
     reports = load_report_manifest(site_root)
+    asset_version = _asset_version(site_root)
     output_dir.parent.mkdir(parents=True, exist_ok=True)
     staging = Path(tempfile.mkdtemp(prefix=f".{output_dir.name}-", dir=output_dir.parent))
     try:
@@ -383,11 +412,15 @@ def build_site(
                     source.read_text(encoding="utf-8"),
                     config=config,
                     report=report,
+                    asset_version=asset_version,
                 ),
                 encoding="utf-8",
             )
 
-        (staging / "index.html").write_text(_render_index(site_root, config, reports), encoding="utf-8")
+        (staging / "index.html").write_text(
+            _render_index(site_root, config, reports, asset_version=asset_version),
+            encoding="utf-8",
+        )
         public_manifest = [
             {key: value for key, value in report.items() if key != "content_path"}
             for report in _prepare_reports(reports)
