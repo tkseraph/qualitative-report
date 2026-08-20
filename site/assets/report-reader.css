@@ -303,6 +303,7 @@
 .report-body {
   position: relative;
   isolation: isolate;
+  overflow-x: clip;
 }
 
 .report-body::before {
